@@ -47,8 +47,81 @@ body {
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 button:not(:disabled) {
   cursor: pointer;
+}
+
+.landing-sweep-in {
+  animation: landing-sweep-in 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.landing-fade-up {
+  animation: landing-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.landing-glass {
+  background: rgba(255, 252, 248, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.landing-shimmer {
+  background: linear-gradient(100deg, #f0e8de 20%, #faf7f2 38%, #f0e8de 56%);
+  background-size: 220% 100%;
+  animation: landing-shimmer 1.4s ease-in-out infinite;
+}
+
+.landing-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(232, 115, 74, 0.2);
+  border-top-color: #e8734a;
+  border-right-color: #f2a950;
+  border-radius: 999px;
+  animation: landing-spin 700ms linear infinite;
+}
+
+@keyframes landing-sweep-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes landing-fade-up {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-shimmer {
+  to { background-position: -220% 0; }
+}
+
+@keyframes landing-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .landing-sweep-in,
+  .landing-fade-up,
+  .landing-shimmer,
+  .landing-spinner {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::-webkit-scrollbar {

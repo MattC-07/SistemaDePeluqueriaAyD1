@@ -6,7 +6,7 @@ import {
   CATEGORY_CONFIG, type BookingState,
 } from '../data';
 import { SuccessIllustration, MemphisStylistAvatar } from '../illustrations';
-import { Button, BookingProgress, Card, PopularBadge, StarRating, PageHeader } from '../ui';
+import { Button, BookingProgress, Card, PopularBadge, StarRating, PageHeader, ServicePhoto } from '../ui';
 
 // ─── STEP 1 — Choose Service ───────────────────────────────────────────────────
 
@@ -51,12 +51,7 @@ export function BookStep1({ onNext, onBack }: {
                     `}
                   >
                     {/* Service icon area */}
-                    <div className={`
-                      w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl
-                      ${selected === service.id ? 'bg-white/20' : 'bg-[#FBF3E9]'}
-                    `}>
-                      {cfg.emoji}
-                    </div>
+                    <ServicePhoto serviceId={service.id} category={service.category} className="h-12 w-12 shrink-0 rounded-2xl" alt={service.name} />
 
                     {/* Service info */}
                     <div className="flex-1 min-w-0">

@@ -1,3 +1,5 @@
+import { LANDING_STYLIST_IMAGES, LANDING_STYLISTS } from './mockData';
+
 export function SplashIllustration() {
   return (
     <svg viewBox="0 0 380 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
@@ -292,7 +294,24 @@ export function MirrorIcon({ size = 24, color = '#E8734A' }: { size?: number; co
   );
 }
 
-export function MemphisStylistAvatar({ name, color, size = 56 }: { name: string; color: string; size?: number }) {
+export function MemphisStylistAvatar({ name, color, size = 56, imageUrl }: { name: string; color: string; size?: number; imageUrl?: string }) {
+  const baseStylist = LANDING_STYLISTS.find(stylist => stylist.name === name);
+  const stylistImage = imageUrl ?? (baseStylist ? LANDING_STYLIST_IMAGES[baseStylist.id] : undefined);
+
+  if (stylistImage) {
+    return (
+      <img
+        src={stylistImage}
+        alt={name}
+        width={size}
+        height={size}
+        loading="lazy"
+        className="shrink-0 rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2);
   const bgColors: Record<string, string> = {
     '#E8734A': '#FDEBD0',
