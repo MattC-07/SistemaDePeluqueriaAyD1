@@ -266,6 +266,7 @@ type AddedStylist = {
   schedule: { day: string; slots: string }[];
   rating: number;
   reviewCount: number;
+  imageUrl: string;
 };
 
 const NEW_STYLIST_COLORS = ['#7B5EA7', '#2E86AB', '#C97D4E', '#4A7C59', '#C45C4C'];
@@ -279,6 +280,8 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteSpecialty, setInviteSpecialty] = useState('');
+  const [invitePhoto, setInvitePhoto] = useState('');
+  const [invitePhotoError, setInvitePhotoError] = useState('');
   const [inviteServiceIds, setInviteServiceIds] = useState<string[]>([]);
   const [inviteSchedule, setInviteSchedule] = useState<{ day: string; slots: string }[]>(
     ALL_DAYS.map(d => ({ day: d, slots: 'Libre' }))
@@ -322,12 +325,16 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
   function resetInviteForm() {
     setInviteName(''); setInviteEmail(''); setInvitePhone('');
     setInviteSpecialty(''); setInviteServiceIds([]);
+    setInvitePhoto(''); setInvitePhotoError('');
     setInviteSchedule(ALL_DAYS.map(d => ({ day: d, slots: 'Libre' })));
     setInviteStep('form');
   }
 
   function handleInvite() {
-    if (!inviteName.trim() || !inviteEmail.trim()) return;
+    if (!inviteName.trim() || !inviteEmail.trim() || !invitePhoto) {
+      if (!invitePhoto) setInvitePhotoError('La foto del estilista es obligatoria.');
+      return;
+    }
     setInviteLoading(true);
     setTimeout(() => {
       const newId = `added-${Date.now()}`;
@@ -343,10 +350,37 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
         schedule: inviteSchedule.filter(e => e.slots !== 'Libre' && e.slots.trim() !== ''),
         rating: 0,
         reviewCount: 0,
+        imageUrl: invitePhoto,
       }]);
       setInviteLoading(false);
       setInviteStep('success');
     }, 900);
+  }
+
+  function handleInvitePhoto(file?: File) {
+    setInvitePhotoError('');
+    if (!file) {
+      setInvitePhoto('');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setInvitePhoto('');
+      setInvitePhotoError('Selecciona un archivo de imagen válido.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setInvitePhoto('');
+      setInvitePhotoError('La imagen debe pesar menos de 5 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') setInvitePhoto(reader.result);
+      else setInvitePhotoError('No se pudo cargar la imagen. Intenta con otro archivo.');
+    };
+    reader.onerror = () => setInvitePhotoError('No se pudo cargar la imagen. Intenta con otro archivo.');
+    reader.readAsDataURL(file);
   }
 
   function openEdit(id: string) {
@@ -392,7 +426,9 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
   const pendingCount = deleteTarget ? (STYLIST_PENDING[deleteTarget] ?? 0) : 0;
   const scheduleTargetDisplay = scheduleTarget ? getDisplay(scheduleTarget, STYLISTS.find(s => s.id === scheduleTarget) ?? addedStylists.find(s => s.id === scheduleTarget)!) : null;
   const scheduleTargetColor = STYLISTS.find(s => s.id === scheduleTarget)?.color ?? addedStylists.find(s => s.id === scheduleTarget)?.color ?? '#E8734A';
+  const scheduleTargetImage = addedStylists.find(s => s.id === scheduleTarget)?.imageUrl;
   const editTargetColor = STYLISTS.find(s => s.id === editTarget)?.color ?? addedStylists.find(s => s.id === editTarget)?.color ?? '#E8734A';
+  const editTargetImage = addedStylists.find(s => s.id === editTarget)?.imageUrl;
 
   function toggleInviteService(sid: string) {
     setInviteServiceIds(prev => prev.includes(sid) ? prev.filter(x => x !== sid) : [...prev, sid]);
@@ -445,6 +481,33 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
                 <Input label="Correo electrónico" type="email" value={inviteEmail} onChange={setInviteEmail} placeholder="pedro@barberia.com" />
                 <Input label="Teléfono" value={invitePhone} onChange={setInvitePhone} placeholder="+34 600 000 000" />
               </div>
+              <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#EDD8BC] bg-[#FBF3E9] p-4">
+                {invitePhoto ? (
+                  <img src={invitePhoto} alt="Vista previa de la foto del estilista" className="h-16 w-16 rounded-full object-cover" />
+                ) : (
+                  <div aria-hidden="true" className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-2xl text-[#A67850]">📷</div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="invite-stylist-photo" className="block text-xs font-black text-[#6B4226]">
+                    Foto del estilista <span className="text-[#C45C4C]">*</span>
+                  </label>
+                  <input
+                    id="invite-stylist-photo"
+                    type="file"
+                    accept="image/*"
+                    required
+                    aria-invalid={Boolean(invitePhotoError || !invitePhoto)}
+                    aria-describedby={invitePhotoError ? 'invite-stylist-photo-error' : 'invite-stylist-photo-hint'}
+                    onChange={event => handleInvitePhoto(event.target.files?.[0])}
+                    className="mt-2 block w-full text-xs text-[#8B5E3C] file:mr-3 file:min-h-11 file:rounded-full file:border-0 file:bg-white file:px-4 file:text-xs file:font-bold file:text-[#6B4226] hover:file:bg-[#F5E6D3]"
+                  />
+                  {invitePhotoError ? (
+                    <p id="invite-stylist-photo-error" role="alert" className="mt-1 text-xs font-medium text-[#C45C4C]">{invitePhotoError}</p>
+                  ) : (
+                    <p id="invite-stylist-photo-hint" className="mt-1 text-[10px] text-[#A67850]">Imagen obligatoria · máximo 5 MB</p>
+                  )}
+                </div>
+              </div>
 
               {/* Services */}
               <div>
@@ -485,7 +548,7 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
               </div>
 
               <div className="flex gap-2 pt-1">
-                <Button onClick={handleInvite} variant="primary" size="sm" fullWidth disabled={inviteLoading || !inviteName.trim() || !inviteEmail.trim()}>
+                <Button onClick={handleInvite} variant="primary" size="sm" fullWidth disabled={inviteLoading || !inviteName.trim() || !inviteEmail.trim() || !invitePhoto}>
                   {inviteLoading ? '⏳ Creando cuenta...' : 'Dar de alta y enviar invitación'}
                 </Button>
                 <Button onClick={() => { setShowInvite(false); resetInviteForm(); }} variant="ghost" size="sm">
@@ -537,6 +600,7 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
               displaySpecialty={d.specialty}
               displayPhone={d.phone}
               displayServiceIds={d.serviceIds}
+              imageUrl={stylist.imageUrl}
               onSchedule={() => setScheduleTarget(stylist.id)}
               onEdit={() => openEdit(stylist.id)}
               onDelete={() => setDeleteTarget(stylist.id)}
@@ -552,7 +616,7 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
           <div className="bg-white rounded-t-[32px] p-6 w-full max-h-[90vh] overflow-y-auto">
             <div className="w-10 h-1 bg-[#EDD8BC] rounded-full mx-auto mb-5" />
             <div className="flex items-center gap-3 mb-5">
-              <MemphisStylistAvatar name={editName || 'E'} color={editTargetColor} size={44} />
+              <MemphisStylistAvatar name={editName || 'E'} color={editTargetColor} size={44} imageUrl={editTargetImage} />
               <div>
                 <h3 className="font-black text-[#6B4226] font-display text-lg">Editar estilista</h3>
                 <p className="text-sm text-[#A67850]">Modifica datos, servicios y horario</p>
@@ -665,7 +729,7 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
           <div className="bg-white rounded-t-[32px] p-6 w-full max-h-[80vh] overflow-y-auto">
             <div className="w-10 h-1 bg-[#EDD8BC] rounded-full mx-auto mb-5" />
             <div className="flex items-center gap-3 mb-5">
-              <MemphisStylistAvatar name={scheduleTargetDisplay.name} color={scheduleTargetColor} size={44} />
+              <MemphisStylistAvatar name={scheduleTargetDisplay.name} color={scheduleTargetColor} size={44} imageUrl={scheduleTargetImage} />
               <div>
                 <h3 className="font-black text-[#6B4226] font-display text-lg">{scheduleTargetDisplay.name}</h3>
                 <p className="text-sm text-[#A67850]">Horario disponible</p>
@@ -695,19 +759,19 @@ export function AdminTeam({ onBack }: { onBack: () => void }) {
 }
 
 function StylistCard({
-  id, color, rating, reviewCount, stats, displayName, displaySpecialty, displayPhone, displayServiceIds,
+  id, color, rating, reviewCount, stats, displayName, displaySpecialty, displayPhone, displayServiceIds, imageUrl,
   onSchedule, onEdit, onDelete, isNew,
 }: {
   id: string; color: string; rating: number; reviewCount: number;
   stats: { appointments: number; revenue: number; rating: number };
-  displayName: string; displaySpecialty: string; displayPhone: string; displayServiceIds: string[];
+  displayName: string; displaySpecialty: string; displayPhone: string; displayServiceIds: string[]; imageUrl?: string;
   onSchedule: () => void; onEdit: () => void; onDelete: () => void; isNew?: boolean;
 }) {
   return (
     <Card padding={false}>
       <div className="p-4">
         <div className="flex items-center gap-3 mb-3">
-          <MemphisStylistAvatar name={displayName} color={color} size={48} />
+          <MemphisStylistAvatar name={displayName} color={color} size={48} imageUrl={imageUrl} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <div className="font-black text-[#6B4226] font-display truncate">{displayName}</div>

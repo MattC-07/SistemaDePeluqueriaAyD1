@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { SERVICES, STYLISTS, getService, formatPrice, formatDuration, CATEGORY_CONFIG, getStylistsForService } from '../data';
-import { Button, Card, PopularBadge, StarRating, CategoryBadge, PageHeader, Input } from '../ui';
+import { Button, Card, PopularBadge, StarRating, CategoryBadge, PageHeader, Input, ServicePhoto } from '../ui';
 import { MemphisStylistAvatar, ScissorsIcon } from '../illustrations';
 
 // ─── HOME / CATALOG ────────────────────────────────────────────────────────────
@@ -11,7 +11,10 @@ export function ClientHome({ onBook, onViewService, userName = 'Juan' }: {
   userName?: string;
 }) {
   const [query, setQuery] = useState('');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const popularServices = SERVICES.filter(s => s.popular);
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? 'Buenos días' : currentHour < 19 ? 'Buenas tardes' : 'Buenas noches';
 
   const searchResults = query.trim()
     ? [
@@ -37,30 +40,47 @@ export function ClientHome({ onBook, onViewService, userName = 'Juan' }: {
     <div className="flex flex-col h-full bg-[#FBF3E9] overflow-y-auto pb-20">
       {/* Header */}
       <div
-        className="bg-[#E8734A] pb-8 px-6 relative overflow-hidden"
-        style={{ paddingTop: 'max(3rem, calc(env(safe-area-inset-top, 0px) + 1rem))' }}
+        className="relative z-30 overflow-visible bg-[#E8734A] px-5 pb-7 sm:px-6"
+        style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top, 0px))' }}
       >
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/4" />
-        <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/4" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute right-0 top-0 h-32 w-32 -translate-y-1/3 translate-x-1/4 rounded-full bg-white/10" />
+          <div className="absolute bottom-0 left-0 h-20 w-20 -translate-x-1/4 translate-y-1/2 rounded-full bg-white/10" />
+        </div>
         <div className="relative z-10">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center justify-between gap-4 mb-5">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               {/* User avatar */}
-              <div className="w-11 h-11 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/30 flex-shrink-0">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/40 flex-shrink-0">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.66-5.33-4-8-4z"/>
                 </svg>
               </div>
-              <div className="min-w-0">
-                <p className="text-white/80 text-sm font-medium">¡Buenos días! 👋</p>
-                <h1 className="text-white font-black font-display text-xl leading-tight truncate">{userName}</h1>
+              <div className="min-w-0 py-0.5">
+                <p className="text-white/90 text-xs sm:text-sm font-semibold leading-5">¡{greeting}! <span aria-hidden="true">👋</span></p>
+                <h1 className="text-white font-black font-display text-lg sm:text-xl leading-6 truncate">{userName}</h1>
               </div>
             </div>
-            <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 ml-2">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
+            <div className="relative z-20 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(open => !open)}
+                aria-label={notificationsOpen ? 'Cerrar notificaciones' : 'Abrir notificaciones'}
+                aria-expanded={notificationsOpen}
+                className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/25 bg-white/15 text-white transition-colors hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-white"
+              >
+                <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M10 21h4" />
+                </svg>
+                <span aria-hidden="true" className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-[#E8734A] bg-[#FFE08A]" />
+              </button>
+              {notificationsOpen && (
+                <div role="status" className="absolute right-0 top-14 z-50 w-[min(16rem,calc(100vw-2.5rem))] rounded-2xl border border-[#EDD8BC] bg-white p-4 text-left shadow-xl">
+                  <p className="text-sm font-bold text-[#6B4226]">Notificaciones</p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#8B5E3C]">Te avisaremos cuando haya novedades sobre tus citas.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -159,9 +179,7 @@ export function ClientHome({ onBook, onViewService, userName = 'Juan' }: {
                 onClick={() => onBook(rec.service.id)}
                 className="flex items-center gap-3 p-3.5 bg-white rounded-[20px] shadow-[0_2px_12px_rgba(107,66,38,0.08)] text-left hover:shadow-[0_4px_20px_rgba(107,66,38,0.14)] active:scale-[0.98] transition-all"
               >
-                <div className="w-12 h-12 bg-[#FBF3E9] rounded-2xl flex items-center justify-center text-xl flex-shrink-0">
-                  {CATEGORY_CONFIG[rec.service.category].emoji}
-                </div>
+                <ServicePhoto serviceId={rec.service.id} category={rec.service.category} className="h-12 w-12 shrink-0 rounded-2xl" />
                 <div className="flex-1 min-w-0">
                   <div className="font-black text-[#6B4226] font-display text-sm">{rec.service.name}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
@@ -194,9 +212,7 @@ export function ClientHome({ onBook, onViewService, userName = 'Juan' }: {
                 onClick={() => onViewService(service.id)}
                 className="flex-shrink-0 w-44 bg-white rounded-[20px] shadow-[0_4px_20px_rgba(107,66,38,0.1)] p-4 text-left hover:shadow-[0_8px_28px_rgba(107,66,38,0.16)] transition-all active:scale-[0.97]"
               >
-                <div className="w-12 h-12 bg-[#FBF3E9] rounded-2xl flex items-center justify-center text-2xl mb-3">
-                  {CATEGORY_CONFIG[service.category].emoji}
-                </div>
+                <ServicePhoto serviceId={service.id} category={service.category} className="mb-3 h-24 w-full rounded-2xl" alt={service.name} />
                 <div className="font-black text-[#6B4226] font-display text-sm leading-tight mb-1">{service.name}</div>
                 <div className="text-xs text-[#A67850] mb-2">{formatDuration(service.duration)}</div>
                 <div className="font-black text-[#E8734A]">{formatPrice(service.price)}</div>
@@ -304,9 +320,7 @@ export function ServiceCatalog({ onViewService, onBook, onBack }: {
           {filtered.map(service => (
             <Card key={service.id} onClick={() => onViewService(service.id)} padding={false}>
               <div className="p-4 flex items-start gap-4">
-                <div className="w-14 h-14 bg-[#FBF3E9] rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
-                  {CATEGORY_CONFIG[service.category].emoji}
-                </div>
+                <ServicePhoto serviceId={service.id} category={service.category} className="h-14 w-14 shrink-0 rounded-2xl" alt={service.name} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <span className="font-black font-display text-[#6B4226] text-base">{service.name}</span>
@@ -355,14 +369,7 @@ export function ServiceDetail({ serviceId, onBook, onBack }: {
     <div className="flex flex-col h-full bg-[#FBF3E9]">
       {/* Hero */}
       <div className="bg-white relative overflow-hidden">
-        <div className="bg-[#E8734A] h-40 flex items-center justify-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-[#C85A31] opacity-20 rounded-b-[40px]" />
-          <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center text-5xl">
-            {cfg.emoji}
-          </div>
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/4" />
-          <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/4" />
-        </div>
+        <ServicePhoto serviceId={service.id} category={service.category} className="h-52 w-full" alt={service.name} />
         <div className="absolute top-3 left-3">
           <button
             onClick={onBack}
@@ -520,9 +527,7 @@ export function AdminServices({ onBack }: { onBack: () => void }) {
           {visibleServices.map(service => (
             <Card key={service.id} padding={false}>
               <div className="p-4 flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#FBF3E9] rounded-2xl flex items-center justify-center text-xl flex-shrink-0">
-                  {CATEGORY_CONFIG[service.category].emoji}
-                </div>
+                <ServicePhoto serviceId={service.id} category={service.category} className="h-12 w-12 shrink-0 rounded-2xl" alt={service.name} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-black font-display text-[#6B4226]">{service.name}</span>
@@ -552,14 +557,9 @@ export function AdminServices({ onBack }: { onBack: () => void }) {
                   <span className="text-xs font-semibold text-[#C8A88A]">Estilistas:</span>
                   <div className="flex gap-1">
                     {getStylistsForService(service.id).map(st => (
-                      <div
-                        key={st.id}
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-black border-2 border-white"
-                        style={{ background: st.color }}
-                        title={st.name}
-                      >
-                        {st.initials}
-                      </div>
+                      <span key={st.id} className="rounded-full border-2 border-white" title={st.name}>
+                        <MemphisStylistAvatar name={st.name} color={st.color} size={27} />
+                      </span>
                     ))}
                     <button className="w-7 h-7 rounded-full bg-[#F5E6D3] border-2 border-dashed border-[#EDD8BC] flex items-center justify-center text-[#A67850] text-xs hover:bg-[#EDD8BC] transition-colors">
                       +

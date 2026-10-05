@@ -5,7 +5,8 @@ import { APPOINTMENTS } from './data';
 import { BottomNav, SideNav } from './ui';
 
 // Onboarding
-import { SplashScreen, LoginScreen, RegisterScreen, RoleSelectScreen, ForgotPasswordScreen } from './screens/Onboarding';
+import { LoginScreen, RegisterScreen, RoleSelectScreen, ForgotPasswordScreen } from './screens/Onboarding';
+import Landing from './screens/Landing';
 
 // Booking
 import { BookStep1, BookStep2, BookStep3, BookStep4, BookSuccess } from './screens/Booking';
@@ -151,7 +152,7 @@ export default function App() {
     setIsLoggedIn(false);
     sessionStorage.removeItem(SESSION_KEY_AUTH);
     sessionStorage.removeItem(SESSION_KEY_ROLE);
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const startBooking = (serviceId?: string) => {
@@ -190,6 +191,7 @@ export default function App() {
   const isAdminOrStylist = role !== 'client' && isLoggedIn && !onboardingScreens.includes(screen);
   const isClientWithNav = role === 'client' && isLoggedIn &&
     !onboardingScreens.includes(screen) &&
+    screen !== 'splash' &&
     screen !== 'book-success' &&
     !screen.startsWith('book-');
 
@@ -198,7 +200,19 @@ export default function App() {
     switch (screen) {
       // ── Onboarding ──────────────────────────────────────────────────────────
       case 'splash':
-        return <SplashScreen onLogin={() => nav('login')} onRegister={() => nav('register')} />;
+        return (
+          <Landing
+            isLoggedIn={isLoggedIn}
+            userName="Juan García"
+            onLogin={() => nav('login')}
+            onRegister={() => nav('register')}
+            onBook={serviceId => {
+              if (isLoggedIn) startBooking(serviceId);
+              else nav('register');
+            }}
+            onProfile={() => nav('profile')}
+          />
+        );
 
       case 'login':
         return (

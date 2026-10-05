@@ -1,5 +1,6 @@
-import { type ReactNode } from 'react';
-import { STATUS_CONFIG, type AppointmentStatus } from './data';
+import { type ReactNode, useState } from 'react';
+import { CATEGORY_CONFIG, STATUS_CONFIG, type AppointmentStatus, type ServiceCategory } from './data';
+import { LANDING_SERVICE_IMAGES } from './mockData';
 
 // ─── BUTTON ────────────────────────────────────────────────────────────────────
 
@@ -53,19 +54,24 @@ export function Button({ children, onClick, variant = 'primary', size = 'md', di
 
 interface InputProps {
   label: string;
+  id?: string;
   type?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  autoComplete?: string;
+  required?: boolean;
   error?: string;
   hint?: string;
   icon?: ReactNode;
+  rightAdornment?: ReactNode;
+  onBlur?: () => void;
 }
 
-export function Input({ label, type = 'text', value, onChange, placeholder, error, hint, icon }: InputProps) {
+export function Input({ label, id, type = 'text', value, onChange, placeholder, autoComplete, required, error, hint, icon, rightAdornment, onBlur }: InputProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-semibold text-[#6B4226]">{label}</label>
+      <label htmlFor={id} className="text-sm font-semibold text-[#6B4226]">{label}</label>
       <div className="relative">
         {icon && (
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A67850]">
@@ -74,22 +80,61 @@ export function Input({ label, type = 'text', value, onChange, placeholder, erro
         )}
         <input
           type={type}
+          id={id}
           value={value}
           onChange={e => onChange(e.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder}
+          autoComplete={autoComplete}
+          required={required}
+          aria-invalid={Boolean(error)}
           className={`
             w-full rounded-[14px] border-2 bg-white px-4 py-3 text-[#6B4226] placeholder-[#C8A88A]
             font-medium text-sm transition-all duration-150 outline-none
             ${icon ? 'pl-10' : ''}
+            ${rightAdornment ? 'pr-12' : ''}
             ${error
               ? 'border-[#C45C4C] focus:border-[#C45C4C] bg-[#FFF5F5]'
               : 'border-[#EDD8BC] focus:border-[#E8734A] hover:border-[#D4B896]'
             }
           `}
         />
+        {rightAdornment && (
+          <span className="absolute right-3.5 top-1/2 -translate-y-1/2">
+            {rightAdornment}
+          </span>
+        )}
       </div>
       {error && <p className="text-xs font-medium text-[#C45C4C]">{error}</p>}
       {hint && !error && <p className="text-xs text-[#A67850]">{hint}</p>}
+    </div>
+  );
+}
+
+export function ServicePhoto({ serviceId, category, className = '', alt }: {
+  serviceId: string;
+  category: ServiceCategory;
+  className?: string;
+  alt?: string;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const image = LANDING_SERVICE_IMAGES[serviceId];
+
+  return (
+    <div className={`relative overflow-hidden bg-[#FBF3E9] ${className}`}>
+      {image && !imageFailed ? (
+        <img
+          src={image}
+          alt={alt ?? ''}
+          loading="lazy"
+          onError={() => setImageFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <span aria-hidden="true" className="flex h-full w-full items-center justify-center text-2xl">
+          {CATEGORY_CONFIG[category].emoji}
+        </span>
+      )}
     </div>
   );
 }

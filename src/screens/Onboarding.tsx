@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { SplashIllustration } from '../illustrations';
 import { Button, Input, Card } from '../ui';
 import type { UserRole } from '../data';
+import { requestRecoveryCode, resetPassword, verifyRecoveryCode } from '../services/recovery';
 
 // Mock registered accounts — in production these would live in the backend
 const REGISTERED_ACCOUNTS = [
@@ -16,6 +17,18 @@ function hasSpecialChar(s: string) {
 }
 function hasNumber(s: string) { return /\d/.test(s); }
 function hasLetter(s: string) { return /[a-zA-Z]/.test(s); }
+function getLoginEmailError(email: string) {
+  if (!email.trim()) return 'El correo electrónico es obligatorio.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+    return 'Ingresa un correo electrónico válido.';
+  }
+  return '';
+}
+function getLoginPasswordError(password: string) {
+  if (!password.trim()) return 'La contraseña es obligatoria.';
+  if (password.length < 8) return 'La contraseña debe tener mínimo 8 caracteres.';
+  return '';
+}
 
 // ─── SPLASH ────────────────────────────────────────────────────────────────────
 
@@ -87,10 +100,11 @@ export function LoginScreen({ onLogin, onRegister, onBack, onForgotPassword }: {
 }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [touched, setTouched] = useState({ email: false, password: false });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [failedAttempts, setFailedAttempts] = useState(0);
+  const failedAttemptTimes = useRef<number[]>([]);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockSecondsLeft, setBlockSecondsLeft] = useState(0);
 
@@ -99,43 +113,62 @@ export function LoginScreen({ onLogin, onRegister, onBack, onForgotPassword }: {
     if (!isBlocked) return;
     const interval = setInterval(() => {
       setBlockSecondsLeft(s => {
-        if (s <= 1) { setIsBlocked(false); setFailedAttempts(0); setError(''); clearInterval(interval); return 0; }
+        if (s <= 1) {
+          setIsBlocked(false);
+          failedAttemptTimes.current = [];
+          setError('');
+          clearInterval(interval);
+          return 0;
+        }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
   }, [isBlocked]);
 
-  const handleLogin = () => {
+  const emailFieldError = touched.email ? getLoginEmailError(email) : '';
+  const passwordFieldError = touched.password ? getLoginPasswordError(password) : '';
+
+  const registerFailedAttempt = (message: string) => {
+    const now = Date.now();
+    const recentAttempts = failedAttemptTimes.current.filter(timestamp => now - timestamp < 5 * 60 * 1000);
+    recentAttempts.push(now);
+    failedAttemptTimes.current = recentAttempts;
+
+    const next = recentAttempts.length;
+    if (next >= 5) {
+      setIsBlocked(true);
+      setBlockSecondsLeft(600);
+      setError('Demasiados intentos fallidos. Cuenta temporalmente bloqueada por seguridad.');
+    } else {
+      setError(`${message} Intento ${next} de 5.`);
+    }
+  };
+
+  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (isBlocked) return;
-    if (!email || !password) { setError('Por favor completa todos los campos.'); return; }
-    if (password.length < 8) { setError('La contraseña debe tener mínimo 8 caracteres.'); return; }
+    setTouched({ email: true, password: true });
+    const validationError = getLoginEmailError(email) || getLoginPasswordError(password);
+    if (validationError) {
+      registerFailedAttempt(validationError);
+      return;
+    }
 
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      const account = REGISTERED_ACCOUNTS.find(a => a.email === email && a.password === password);
+      const account = REGISTERED_ACCOUNTS.find(
+        a => a.email === email.trim().toLowerCase() && a.password === password
+      );
       if (account) {
         setError('');
-        setFailedAttempts(0);
+        failedAttemptTimes.current = [];
         onLogin(account.role);
       } else {
-        const next = failedAttempts + 1;
-        setFailedAttempts(next);
-        if (next >= 5) {
-          setIsBlocked(true);
-          setBlockSecondsLeft(600);
-          setError('Demasiados intentos fallidos. Cuenta temporalmente bloqueada por seguridad.');
-        } else {
-          setError(`Correo o contraseña incorrectos. Intento ${next} de 5.`);
-        }
+        registerFailedAttempt('Correo o contraseña incorrectos.');
       }
     }, 900);
-  };
-
-  const handleGoogle = () => {
-    setGoogleLoading(true);
-    setTimeout(() => { setGoogleLoading(false); onLogin('client'); }, 1400);
   };
 
   return (
@@ -171,36 +204,75 @@ export function LoginScreen({ onLogin, onRegister, onBack, onForgotPassword }: {
         <h2 className="text-2xl font-black text-[#6B4226] font-display text-center mb-1">Bienvenido de vuelta</h2>
         <p className="text-center text-[#A67850] text-sm mb-8">Inicia sesión para gestionar tus citas</p>
 
-        <Card className="mb-6">
-          <div className="flex flex-col gap-4">
-            <Input
-              label="Correo electrónico"
-              type="email"
-              value={email}
-              onChange={setEmail}
-              placeholder="tu@correo.com"
-              icon={<span className="text-base">✉️</span>}
-            />
-            <Input
-              label="Contraseña"
-              type="password"
-              value={password}
-              onChange={setPassword}
-              placeholder="••••••••"
-              icon={<span className="text-base">🔒</span>}
-            />
-            {error && (
-              <div className="bg-[#F8D7DA] border border-[#F0C0BE] rounded-xl p-3">
-                <p className="text-[#C45C4C] text-sm font-medium">⚠️ {error}</p>
-                {isBlocked && blockSecondsLeft > 0 && (
-                  <p className="text-[#C45C4C] text-xs mt-1">
-                    Podrás intentarlo en {Math.floor(blockSecondsLeft / 60)}:{String(blockSecondsLeft % 60).padStart(2, '0')} min.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </Card>
+        <form noValidate onSubmit={handleLogin}>
+          <Card className="mb-6">
+            <div className="flex flex-col gap-4">
+              <Input
+                id="login-email"
+                label="Correo electrónico"
+                type="email"
+                value={email}
+                onChange={value => { setEmail(value); setError(''); setTouched(t => ({ ...t, email: true })); }}
+                onBlur={() => setTouched(t => ({ ...t, email: true }))}
+                placeholder="tu@correo.com"
+                autoComplete="email"
+                required
+                error={emailFieldError}
+                icon={<span className="text-base">✉️</span>}
+              />
+              <Input
+                id="login-password"
+                label="Contraseña"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={value => { setPassword(value); setError(''); setTouched(t => ({ ...t, password: true })); }}
+                onBlur={() => setTouched(t => ({ ...t, password: true }))}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+                error={passwordFieldError}
+                icon={<span className="text-base">🔒</span>}
+                rightAdornment={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(visible => !visible)}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-pressed={showPassword}
+                    className="text-[#A67850] hover:text-[#6B4226] focus-visible:outline-2 focus-visible:outline-[#E8734A] rounded"
+                  >
+                    {showPassword ? (
+                      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 3l18 18" />
+                        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                        <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9.5 7-.4 1-1.2 2.1-2.3 3.1" />
+                        <path d="M6.2 6.2C3.9 7.7 2.7 9.8 2.5 12c.5 1.2 3.9 7 9.5 7 1 0 1.9-.2 2.7-.5" />
+                      </svg>
+                    ) : (
+                      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                }
+              />
+              {error && (
+                <div role="alert" className="bg-[#F8D7DA] border border-[#F0C0BE] rounded-xl p-3">
+                  <p className="text-[#C45C4C] text-sm font-medium">⚠️ {error}</p>
+                  {isBlocked && blockSecondsLeft > 0 && (
+                    <p className="text-[#C45C4C] text-xs mt-1">
+                      Podrás intentarlo en {Math.floor(blockSecondsLeft / 60)}:{String(blockSecondsLeft % 60).padStart(2, '0')} min.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading || isBlocked}>
+            {loading ? '⏳ Ingresando...' : isBlocked ? '🔒 Bloqueado temporalmente' : 'Iniciar sesión'}
+          </Button>
+        </form>
 
         {/* Demo hint */}
         <div className="bg-[#F5E6D3] rounded-2xl p-4 mb-6 border border-[#EDD8BC]">
@@ -222,40 +294,11 @@ export function LoginScreen({ onLogin, onRegister, onBack, onForgotPassword }: {
           </div>
         </div>
 
-        <Button onClick={handleLogin} variant="primary" size="lg" fullWidth disabled={loading || isBlocked}>
-          {loading ? '⏳ Ingresando...' : isBlocked ? '🔒 Bloqueado temporalmente' : 'Iniciar sesión'}
-        </Button>
-
         <button
           onClick={onForgotPassword}
           className="w-full text-center mt-4 text-[#A67850] text-sm font-medium hover:text-[#E8734A] transition-colors"
         >
           ¿Olvidaste tu contraseña?
-        </button>
-
-        <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-[#EDD8BC]" />
-          <span className="text-xs text-[#C8A88A] font-medium">o continúa con</span>
-          <div className="flex-1 h-px bg-[#EDD8BC]" />
-        </div>
-
-        {/* Google login */}
-        <button
-          onClick={handleGoogle}
-          disabled={googleLoading}
-          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-[14px] bg-white border-2 border-[#EDD8BC] hover:border-[#D4B896] hover:bg-[#FBF3E9] active:scale-[0.97] transition-all font-semibold text-[#6B4226] text-sm shadow-[0_2px_8px_rgba(107,66,38,0.06)] mb-4"
-        >
-          {googleLoading ? (
-            <span className="text-base">⏳</span>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-          )}
-          {googleLoading ? 'Conectando con Google...' : 'Continuar con Google'}
         </button>
 
         <Button onClick={onRegister} variant="ghost" fullWidth>
@@ -500,20 +543,272 @@ export function RoleSelectScreen({ onSelect }: { onSelect: (role: UserRole) => v
 
 // ─── FORGOT PASSWORD ───────────────────────────────────────────────────────────
 
-export function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+type RecoveryStep = 'email' | 'code' | 'password';
+type RecoveryStatus = 'idle' | 'loading' | 'success' | 'error' | 'blocked_attempts' | 'expired';
 
-  const handleSend = () => {
-    if (!email.includes('@')) {
-      setError('Ingresa un correo electrónico válido.');
+const RECOVERY_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const OTP_LENGTH = 6;
+const OTP_LIFETIME_SECONDS = 15 * 60;
+const RESEND_COOLDOWN_SECONDS = 60;
+const PASSWORD_REQUIREMENTS = [
+  { label: 'Mínimo 8 caracteres', test: (value: string) => value.length >= 8 },
+  { label: 'Al menos una letra mayúscula y una minúscula', test: (value: string) => /[A-Z]/.test(value) && /[a-z]/.test(value) },
+  { label: 'Al menos un número', test: (value: string) => /\d/.test(value) },
+  { label: 'Al menos un carácter especial (@, $, !, %, *, ?, &)', test: (value: string) => /[@$!%*?&]/.test(value) },
+];
+
+function formatCountdown(seconds: number) {
+  return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+}
+
+function PasswordVisibilityButton({ visible, onToggle, label }: {
+  visible: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={visible ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`}
+      aria-pressed={visible}
+      className="text-[#A67850] hover:text-[#6B4226] focus-visible:outline-2 focus-visible:outline-[#E8734A] rounded"
+    >
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        {visible ? (
+          <>
+            <path d="M3 3l18 18" />
+            <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+            <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9.5 7-.4 1-1.2 2.1-2.3 3.1" />
+            <path d="M6.2 6.2C3.9 7.7 2.7 9.8 2.5 12c.5 1.2 3.9 7 9.5 7 1 0 1.9-.2 2.7-.5" />
+          </>
+        ) : (
+          <>
+            <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+            <circle cx="12" cy="12" r="3" />
+          </>
+        )}
+      </svg>
+    </button>
+  );
+}
+
+export function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
+  const [step, setStep] = useState<RecoveryStep>('email');
+  const [status, setStatus] = useState<RecoveryStatus>('idle');
+  const [loadingAction, setLoadingAction] = useState<'request' | 'verify' | 'reset' | null>(null);
+  const [email, setEmail] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [message, setMessage] = useState('');
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [secondsRemaining, setSecondsRemaining] = useState(OTP_LIFETIME_SECONDS);
+  const [resendSeconds, setResendSeconds] = useState(0);
+  const [verifiedCode, setVerifiedCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const codeExpiresAt = useRef(0);
+  const code = otpDigits.join('');
+  const emailError = emailTouched && !RECOVERY_EMAIL_PATTERN.test(email.trim())
+    ? (email.trim() ? 'Ingresa un correo electrónico válido.' : 'El correo electrónico es obligatorio.')
+    : '';
+  const requirements = PASSWORD_REQUIREMENTS.map(requirement => ({
+    ...requirement,
+    met: requirement.test(newPassword),
+  }));
+  const passwordsMatch = Boolean(newPassword && newPassword === confirmPassword);
+  const attemptsRemaining = 3 - attemptsUsed;
+  const isCodeUnavailable = attemptsUsed >= 3 || secondsRemaining <= 0;
+
+  useEffect(() => {
+    if (step !== 'code' || isCodeUnavailable || status === 'success' || secondsRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setSecondsRemaining(remaining => Math.max(remaining - 1, 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [step, isCodeUnavailable, status, secondsRemaining]);
+
+  useEffect(() => {
+    if (step === 'code' && secondsRemaining === 0 && status !== 'blocked_attempts' && status !== 'success' && status !== 'loading') {
+      setStatus('expired');
+      setMessage('El código ha expirado. Por favor solicita un nuevo código de recuperación.');
+    }
+  }, [step, secondsRemaining, status]);
+
+  useEffect(() => {
+    if (step !== 'code' || resendSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setResendSeconds(remaining => Math.max(remaining - 1, 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [step, resendSeconds]);
+
+  useEffect(() => {
+    if (status !== 'success') return;
+    const timeout = setTimeout(onBack, 2000);
+    return () => clearTimeout(timeout);
+  }, [status, onBack]);
+
+  const sendRecoveryCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setEmailTouched(true);
+    if (!RECOVERY_EMAIL_PATTERN.test(email.trim())) {
+      setStatus('error');
+      setMessage(email.trim() ? 'Ingresa un correo electrónico válido.' : 'El correo electrónico es obligatorio.');
       return;
     }
-    setError('');
-    setLoading(true);
-    setTimeout(() => { setLoading(false); setSent(true); }, 1000);
+
+    setStatus('loading');
+    setLoadingAction('request');
+    setMessage('');
+    try {
+      await requestRecoveryCode(email.trim());
+      codeExpiresAt.current = Date.now() + OTP_LIFETIME_SECONDS * 1000;
+      setOtpDigits(Array(OTP_LENGTH).fill(''));
+      setAttemptsUsed(0);
+      setSecondsRemaining(OTP_LIFETIME_SECONDS);
+      setResendSeconds(RESEND_COOLDOWN_SECONDS);
+      setVerifiedCode('');
+      setStep('code');
+      setStatus('idle');
+      setLoadingAction(null);
+      setMessage('Revisa tu bandeja de entrada e ingresa el código proporcionado aquí:');
+      window.setTimeout(() => otpRefs.current[0]?.focus(), 0);
+    } catch {
+      setStatus('error');
+      setLoadingAction(null);
+      setMessage('No fue posible solicitar el código. Intenta nuevamente.');
+    }
+  };
+
+  const requestNewCode = async () => {
+    if (status === 'loading') return;
+    setStatus('loading');
+    setLoadingAction('request');
+    setMessage('');
+    try {
+      await requestRecoveryCode(email.trim());
+      codeExpiresAt.current = Date.now() + OTP_LIFETIME_SECONDS * 1000;
+      setOtpDigits(Array(OTP_LENGTH).fill(''));
+      setAttemptsUsed(0);
+      setSecondsRemaining(OTP_LIFETIME_SECONDS);
+      setResendSeconds(RESEND_COOLDOWN_SECONDS);
+      setVerifiedCode('');
+      setStatus('idle');
+      setLoadingAction(null);
+      setMessage('Revisa tu bandeja de entrada e ingresa el código proporcionado aquí:');
+      window.setTimeout(() => otpRefs.current[0]?.focus(), 0);
+    } catch {
+      setStatus('error');
+      setLoadingAction(null);
+      setMessage('No fue posible solicitar el código. Intenta nuevamente.');
+    }
+  };
+
+  const updateOtpDigit = (index: number, value: string) => {
+    if (isCodeUnavailable || status === 'loading') return;
+    const digits = value.replace(/\D/g, '');
+    if (!digits) {
+      setOtpDigits(current => current.map((digit, position) => position === index ? '' : digit));
+      return;
+    }
+
+    const nextDigits = [...otpDigits];
+    if (digits.length > 1) {
+      digits.slice(0, OTP_LENGTH).split('').forEach((digit, offset) => {
+        nextDigits[offset] = digit;
+      });
+      setOtpDigits(nextDigits);
+      otpRefs.current[Math.min(digits.length, OTP_LENGTH) - 1]?.focus();
+      return;
+    }
+
+    nextDigits[index] = digits;
+    setOtpDigits(nextDigits);
+    setMessage('');
+    if (status === 'error') setStatus('idle');
+    if (index < OTP_LENGTH - 1) otpRefs.current[index + 1]?.focus();
+  };
+
+  const handleOtpKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+    if (event.key === 'ArrowLeft' && index > 0) otpRefs.current[index - 1]?.focus();
+    if (event.key === 'ArrowRight' && index < OTP_LENGTH - 1) otpRefs.current[index + 1]?.focus();
+  };
+
+  const verifyCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isCodeUnavailable || status === 'loading') return;
+    if (code.length !== OTP_LENGTH) {
+      setStatus('error');
+      setMessage('Ingresa el código de 6 dígitos.');
+      return;
+    }
+
+    setStatus('loading');
+    setLoadingAction('verify');
+    setMessage('');
+    try {
+      const isValid = await verifyRecoveryCode(email.trim(), code);
+      if (Date.now() >= codeExpiresAt.current) {
+        setSecondsRemaining(0);
+        setStatus('expired');
+        setLoadingAction(null);
+        setMessage('El código ha expirado. Por favor solicita un nuevo código de recuperación.');
+      } else if (isValid) {
+        setVerifiedCode(code);
+        setStep('password');
+        setStatus('idle');
+        setLoadingAction(null);
+      } else {
+        const nextAttempts = attemptsUsed + 1;
+        setAttemptsUsed(nextAttempts);
+        setOtpDigits(Array(OTP_LENGTH).fill(''));
+        if (nextAttempts >= 3) {
+          setStatus('blocked_attempts');
+          setLoadingAction(null);
+          setMessage('El código ha sido bloqueado por seguridad tras múltiples intentos fallidos. Por favor solicita uno nuevo.');
+        } else {
+          setStatus('error');
+          setLoadingAction(null);
+          setMessage('El código ingresado no es válido. Intenta nuevamente.');
+          window.setTimeout(() => otpRefs.current[0]?.focus(), 0);
+        }
+      }
+    } catch {
+      setStatus('error');
+      setLoadingAction(null);
+      setMessage('No fue posible verificar el código. Intenta nuevamente.');
+    }
+  };
+
+  const resetRecoveryPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (status === 'loading' || status === 'success') return;
+    if (!requirements.every(requirement => requirement.met) || !passwordsMatch) {
+      setStatus('error');
+      setMessage('Completa todos los requisitos y confirma que las contraseñas coincidan.');
+      return;
+    }
+
+    setStatus('loading');
+    setLoadingAction('reset');
+    setMessage('');
+    try {
+      await resetPassword(email.trim(), verifiedCode, newPassword);
+      setStatus('success');
+      setLoadingAction(null);
+      setMessage('Contraseña actualizada exitosamente. Por favor, inicia sesión.');
+    } catch {
+      setStatus('error');
+      setLoadingAction(null);
+      setMessage('No fue posible cambiar la contraseña. Intenta nuevamente.');
+    }
   };
 
   return (
@@ -522,7 +817,9 @@ export function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
 
       <div className="relative z-10 flex items-center gap-4 p-5 pt-10">
         <button
+          type="button"
           onClick={onBack}
+          aria-label="Volver al inicio de sesión"
           className="w-10 h-10 rounded-full bg-white shadow-[0_2px_12px_rgba(107,66,38,0.1)] flex items-center justify-center text-[#6B4226] hover:bg-[#F5E6D3] transition-colors"
         >
           ←
@@ -530,73 +827,205 @@ export function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
         <h2 className="text-xl font-black text-[#6B4226] font-display">Recuperar contraseña</h2>
       </div>
 
-      <div className="relative z-10 flex justify-center py-6">
-        <div className="w-20 h-20 bg-white rounded-[20px] shadow-[0_4px_24px_rgba(107,66,38,0.1)] flex items-center justify-center text-4xl">
+      <div className="relative z-10 flex justify-center py-5">
+        <div className="w-16 h-16 bg-white rounded-[20px] shadow-[0_4px_24px_rgba(107,66,38,0.1)] flex items-center justify-center text-3xl">
           🔑
         </div>
       </div>
 
-      <div className="relative z-10 flex-1 px-6 pb-10">
-        {sent ? (
-          <div className="flex flex-col items-center text-center gap-4 py-4">
-            <div className="w-20 h-20 bg-[#EAF2E3] rounded-full flex items-center justify-center text-4xl">
-              ✉️
-            </div>
-            <div>
-              <h3 className="text-2xl font-black text-[#6B4226] font-display mb-2">¡Correo enviado!</h3>
-              <p className="text-[#A67850] text-sm leading-relaxed">
-                Hemos enviado las instrucciones para restablecer tu contraseña a{' '}
-                <strong className="text-[#6B4226]">{email}</strong>.
-              </p>
-              <p className="text-[#A67850] text-sm leading-relaxed mt-2">
-                Revisa tu bandeja de entrada (y la carpeta de spam).
-              </p>
-            </div>
-            <div className="w-full bg-[#EAF2E3] border border-[#A8BB92] rounded-2xl p-4">
-              <p className="text-[#4A7C59] text-sm font-semibold">✓ Correo enviado correctamente</p>
-            </div>
-            <Button onClick={onBack} variant="primary" size="lg" fullWidth>
-              Volver al inicio de sesión
-            </Button>
-            <button
-              onClick={() => { setSent(false); setEmail(''); }}
-              className="text-sm text-[#A67850] hover:text-[#E8734A] font-medium transition-colors"
-            >
-              Usar otro correo
-            </button>
-          </div>
-        ) : (
-          <>
-            <h3 className="text-2xl font-black text-[#6B4226] font-display text-center mb-2">
-              ¿Olvidaste tu contraseña?
-            </h3>
-            <p className="text-center text-[#A67850] text-sm mb-8 leading-relaxed">
-              No te preocupes. Ingresa tu correo y te enviaremos instrucciones para crear una nueva.
-            </p>
+      <div className="relative z-10 flex-1 px-6 pb-10 max-w-xl w-full mx-auto">
+        <div className="flex items-center gap-2 mb-6" aria-label={`Paso ${step === 'email' ? 1 : step === 'code' ? 2 : 3} de 3`}>
+          {(['email', 'code', 'password'] as RecoveryStep[]).map((item, index) => {
+            const currentIndex = step === 'email' ? 0 : step === 'code' ? 1 : 2;
+            return (
+              <div key={item} className={`h-1.5 flex-1 rounded-full ${index <= currentIndex ? 'bg-[#E8734A]' : 'bg-[#EDD8BC]'}`} />
+            );
+          })}
+        </div>
 
+        <h3 className="text-2xl font-black text-[#6B4226] font-display text-center mb-2">
+          {step === 'email' ? '¿Olvidaste tu contraseña?' : step === 'code' ? 'Verifica tu correo' : 'Crea una contraseña nueva'}
+        </h3>
+        <p className="text-center text-[#A67850] text-sm mb-6 leading-relaxed">
+          {step === 'email'
+            ? 'Ingresa tu correo y te enviaremos un código para recuperar tu acceso.'
+            : step === 'code'
+              ? 'Ingresa el código de 6 dígitos enviado a tu correo electrónico.'
+              : 'Elige una contraseña segura para proteger tu cuenta.'}
+        </p>
+
+        {message && (
+          <div
+            role={status === 'error' || status === 'blocked_attempts' || status === 'expired' ? 'alert' : 'status'}
+            aria-live={status === 'error' || status === 'blocked_attempts' || status === 'expired' ? 'assertive' : 'polite'}
+            className={`mb-5 rounded-2xl border p-4 text-sm font-medium ${
+              status === 'blocked_attempts' || status === 'expired' || status === 'error'
+                ? 'bg-[#F8D7DA] border-[#F0C0BE] text-[#C45C4C]'
+                : status === 'success'
+                  ? 'bg-[#EAF2E3] border-[#A8BB92] text-[#4A7C59]'
+                  : 'bg-[#EAF2E3] border-[#A8BB92] text-[#4A7C59]'
+            }`}
+          >
+            {message}
+          </div>
+        )}
+
+        {step === 'email' && (
+          <form noValidate onSubmit={sendRecoveryCode}>
             <Card className="mb-5">
               <Input
+                id="recovery-email"
                 label="Correo electrónico"
                 type="email"
                 value={email}
-                onChange={v => { setEmail(v); setError(''); }}
+                onChange={value => {
+                  setEmail(value);
+                  if (status === 'error') { setStatus('idle'); setMessage(''); }
+                }}
+                onBlur={() => setEmailTouched(true)}
                 placeholder="tu@correo.com"
-                error={error}
+                autoComplete="email"
+                required
+                error={emailError}
                 icon={<span>✉️</span>}
               />
             </Card>
-
-            <Button onClick={handleSend} variant="primary" size="lg" fullWidth disabled={loading}>
-              {loading ? '⏳ Enviando...' : 'Enviar instrucciones'}
+            <Button type="submit" variant="primary" size="lg" fullWidth disabled={status === 'loading'}>
+              {status === 'loading' ? '⏳ Enviando código...' : 'Enviar código'}
             </Button>
+          </form>
+        )}
 
-            <button
-              onClick={onBack}
-              className="w-full text-center mt-4 text-[#A67850] text-sm font-medium hover:text-[#E8734A] transition-colors"
+        {step === 'code' && (
+          <form noValidate onSubmit={verifyCode}>
+            <Card className="mb-5">
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <span className="text-sm font-semibold text-[#6B4226]">El código vence en</span>
+                <span
+                  className={`font-display font-black text-lg ${secondsRemaining <= 60 ? 'text-[#C45C4C]' : 'text-[#6B4226]'}`}
+                  aria-label={`Tiempo restante ${formatCountdown(secondsRemaining)}`}
+                >
+                  {formatCountdown(secondsRemaining)}
+                </span>
+              </div>
+              <div className="flex justify-center gap-2 sm:gap-3" aria-label="Código de verificación de seis dígitos">
+                {otpDigits.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={element => { otpRefs.current[index] = element; }}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                    aria-label={`Dígito ${index + 1} del código`}
+                    value={digit}
+                    maxLength={1}
+                    disabled={isCodeUnavailable || status === 'loading'}
+                    onChange={event => updateOtpDigit(index, event.target.value)}
+                    onKeyDown={event => handleOtpKeyDown(index, event)}
+                    onPaste={event => {
+                      event.preventDefault();
+                      updateOtpDigit(index, event.clipboardData.getData('text'));
+                    }}
+                    className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold text-[#6B4226] bg-white border-2 border-[#EDD8BC] rounded-xl outline-none focus:border-[#E8734A] disabled:bg-[#F5E6D3] disabled:text-[#A67850]"
+                  />
+                ))}
+              </div>
+              <p className="text-center text-sm text-[#A67850] mt-5" aria-live="polite">
+                Intentos restantes: {attemptsRemaining}
+              </p>
+            </Card>
+
+            {loadingAction === 'request' && status === 'loading' ? (
+              <Button type="button" variant="primary" size="lg" fullWidth disabled>
+                ⏳ Solicitando...
+              </Button>
+            ) : isCodeUnavailable ? (
+              <Button type="button" onClick={requestNewCode} variant="primary" size="lg" fullWidth disabled={status === 'loading'}>
+                {status === 'loading' ? '⏳ Solicitando...' : 'Solicitar nuevo código'}
+              </Button>
+            ) : (
+              <>
+                <Button type="submit" variant="primary" size="lg" fullWidth disabled={status === 'loading'}>
+                  {status === 'loading' ? '⏳ Verificando...' : 'Verificar código'}
+                </Button>
+                <button
+                  type="button"
+                  onClick={requestNewCode}
+                  disabled={resendSeconds > 0 || status === 'loading'}
+                  className="w-full text-center mt-4 text-sm font-medium text-[#A67850] hover:text-[#E8734A] disabled:text-[#C8A88A] disabled:cursor-not-allowed"
+                >
+                  {resendSeconds > 0 ? `Reenviar código en ${formatCountdown(resendSeconds)}` : 'Reenviar código'}
+                </button>
+              </>
+            )}
+          </form>
+        )}
+
+        {step === 'password' && (
+          <form noValidate onSubmit={resetRecoveryPassword}>
+            <Card className="mb-5">
+              <div className="flex flex-col gap-4">
+                <Input
+                  id="recovery-new-password"
+                  label="Nueva contraseña"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  placeholder="Ingresa tu nueva contraseña"
+                  autoComplete="new-password"
+                  required
+                  rightAdornment={
+                    <PasswordVisibilityButton
+                      visible={showNewPassword}
+                      onToggle={() => setShowNewPassword(visible => !visible)}
+                      label="Nueva contraseña"
+                    />
+                  }
+                />
+                <Input
+                  id="recovery-confirm-password"
+                  label="Confirmar contraseña"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  placeholder="Confirma tu nueva contraseña"
+                  autoComplete="new-password"
+                  required
+                  error={confirmPassword && !passwordsMatch ? 'Las contraseñas no coinciden.' : ''}
+                  rightAdornment={
+                    <PasswordVisibilityButton
+                      visible={showConfirmPassword}
+                      onToggle={() => setShowConfirmPassword(visible => !visible)}
+                      label="Confirmar contraseña"
+                    />
+                  }
+                />
+              </div>
+            </Card>
+
+            <Card className="mb-5">
+              <h4 className="text-sm font-bold text-[#6B4226] mb-3">Requisitos de contraseña</h4>
+              <ul className="flex flex-col gap-2">
+                {[...requirements, { label: 'Las contraseñas coinciden', met: passwordsMatch }].map(requirement => (
+                  <li key={requirement.label} className={`flex items-start gap-2 text-xs ${requirement.met ? 'text-[#4A7C59]' : 'text-[#A67850]'}`}>
+                    <span aria-hidden="true" className="font-bold">{requirement.met ? '✓' : '○'}</span>
+                    <span>{requirement.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={status === 'loading' || status === 'success'}
             >
-              ← Volver al inicio de sesión
-            </button>
-          </>
+              {status === 'loading' ? '⏳ Actualizando...' : 'Cambiar contraseña'}
+            </Button>
+          </form>
         )}
       </div>
     </div>
