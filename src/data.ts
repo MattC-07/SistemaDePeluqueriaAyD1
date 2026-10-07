@@ -44,6 +44,8 @@ export interface BookingState {
   stylistId: string | null;
   date: string | null;
   time: string | null;
+  holdId?: string;
+  holdExpiresAt?: number;
 }
 
 export const SERVICES: Service[] = [
