@@ -5,10 +5,14 @@ import type { UserRole } from '../data';
 import { requestRecoveryCode, resetPassword, verifyRecoveryCode } from '../services/recovery';
 
 // Mock registered accounts — in production these would live in the backend
-const REGISTERED_ACCOUNTS = [
-  { email: 'admin@barberia.com',      password: 'demo1234', role: 'admin'   as UserRole },
-  { email: 'estilista@barberia.com',  password: 'demo1234', role: 'stylist' as UserRole },
-  { email: 'cliente@demo.com',        password: 'demo1234', role: 'client'  as UserRole },
+const REGISTERED_ACCOUNTS: { email: string; password: string; role: UserRole; name: string }[] = [
+  { email: 'admin@barberia.com', password: 'demo1234', role: 'admin', name: 'Admin BarberBook' },
+  { email: 'estilista@barberia.com', password: 'demo1234', role: 'stylist', name: 'Carlos Ruiz' },
+  { email: 'cliente1@demo.com', password: 'cliente123', role: 'client', name: 'Juan García' },
+  { email: 'cliente2@demo.com', password: 'cliente123', role: 'client', name: 'María López' },
+  { email: 'cliente3@demo.com', password: 'cliente123', role: 'client', name: 'Andrés Pérez' },
+  { email: 'cliente4@demo.com', password: 'cliente123', role: 'client', name: 'Sofía Ramírez' },
+  { email: 'cliente5@demo.com', password: 'cliente123', role: 'client', name: 'Prueba de seguridad' },
 ];
 const REGISTERED_EMAILS = REGISTERED_ACCOUNTS.map(a => a.email);
 
@@ -93,7 +97,7 @@ export function SplashScreen({ onLogin, onRegister }: { onLogin: () => void; onR
 // ─── LOGIN ─────────────────────────────────────────────────────────────────────
 
 export function LoginScreen({ onLogin, onRegister, onBack, onForgotPassword }: {
-  onLogin: (role: UserRole) => void;
+  onLogin: (role: UserRole, name: string) => void;
   onRegister: () => void;
   onBack: () => void;
   onForgotPassword?: () => void;
@@ -164,7 +168,7 @@ export function LoginScreen({ onLogin, onRegister, onBack, onForgotPassword }: {
       if (account) {
         setError('');
         failedAttemptTimes.current = [];
-        onLogin(account.role);
+        onLogin(account.role, account.name);
       } else {
         registerFailedAttempt('Correo o contraseña incorrectos.');
       }
@@ -278,19 +282,27 @@ export function LoginScreen({ onLogin, onRegister, onBack, onForgotPassword }: {
         <div className="bg-[#F5E6D3] rounded-2xl p-4 mb-6 border border-[#EDD8BC]">
           <p className="text-xs text-[#8B5E3C] font-semibold mb-1.5">💡 Accesos demo:</p>
           <div className="flex flex-col gap-1">
-            {[
-              { role: 'Cliente', email: 'cliente@demo.com' },
-              { role: 'Estilista', email: 'estilista@barberia.com' },
-              { role: 'Admin', email: 'admin@barberia.com' },
-            ].map(item => (
+            {REGISTERED_ACCOUNTS.filter(account => account.role === 'client').map((account, index) => (
               <button
-                key={item.role}
-                onClick={() => { setEmail(item.email); setPassword('demo1234'); }}
+                key={account.email}
+                onClick={() => { setEmail(account.email); setPassword(account.password); }}
                 className="text-left text-xs text-[#E8734A] font-semibold hover:underline"
               >
-                {item.role}: {item.email}
+                Cliente {index + 1}{index === 4 ? ' · prueba de acceso al historial' : ''}: {account.email} · {account.password}
               </button>
             ))}
+            <button
+              onClick={() => { setEmail('estilista@barberia.com'); setPassword('demo1234'); }}
+              className="text-left text-xs text-[#E8734A] font-semibold hover:underline"
+            >
+              Estilista: estilista@barberia.com · demo1234
+            </button>
+            <button
+              onClick={() => { setEmail('admin@barberia.com'); setPassword('demo1234'); }}
+              className="text-left text-xs text-[#E8734A] font-semibold hover:underline"
+            >
+              Admin: admin@barberia.com · demo1234
+            </button>
           </div>
         </div>
 

@@ -27,6 +27,13 @@ const formatCOP = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+function getRequestErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null && "status" in error && error.status === 403) {
+    return "Acceso Denegado: No tienes permisos para realizar esta acción.";
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function AdminServices({ onBack }: { onBack: () => void }) {
   const [services, setServices] = useState<Service[]>([]);
   const [filter, setFilter] = useState<ServiceFilter>("TODOS");
@@ -46,7 +53,11 @@ export default function AdminServices({ onBack }: { onBack: () => void }) {
     try {
       setServices(await getServices());
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "No fue posible cargar los servicios.");
+      const message = getRequestErrorMessage(error, "No fue posible cargar los servicios.");
+      setLoadError(message);
+      if (typeof error === "object" && error !== null && "status" in error && error.status === 403) {
+        setNotice({ type: "error", message });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +120,11 @@ export default function AdminServices({ onBack }: { onBack: () => void }) {
         message: editingService ? "Servicio actualizado correctamente." : "Servicio creado correctamente.",
       });
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "No fue posible guardar el servicio.");
+      const message = getRequestErrorMessage(error, "No fue posible guardar el servicio.");
+      setSubmitError(message);
+      if (typeof error === "object" && error !== null && "status" in error && error.status === 403) {
+        setNotice({ type: "error", message });
+      }
     } finally {
       setIsSaving(false);
     }
@@ -130,7 +145,7 @@ export default function AdminServices({ onBack }: { onBack: () => void }) {
     } catch (error) {
       setNotice({
         type: "error",
-        message: error instanceof Error ? error.message : "No fue posible actualizar el estado del servicio.",
+        message: getRequestErrorMessage(error, "No fue posible actualizar el estado del servicio."),
       });
     } finally {
       setPendingStatusId(null);

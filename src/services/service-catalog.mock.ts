@@ -18,6 +18,26 @@ const MOCK_DELAY_MS = 400;
 
 const delay = () => new Promise<void>(resolve => window.setTimeout(resolve, MOCK_DELAY_MS));
 
+export class ServiceApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ServiceApiError";
+  }
+}
+
+function assertAdmin(): void {
+  const isAdmin =
+    typeof window !== "undefined" &&
+    window.sessionStorage.getItem("bb_auth") === "true" &&
+    window.sessionStorage.getItem("bb_role") === "admin";
+  if (!isAdmin) {
+    throw new ServiceApiError(
+      "Acceso Denegado: No tienes permisos para realizar esta acción.",
+      403,
+    );
+  }
+}
+
 let nextId = 6;
 let services: Service[] = [
   { id: "service-1", name: "Corte clásico", duration: 45, price: 25000, category: "Cortes", status: "ACTIVO" },
@@ -49,11 +69,13 @@ function assertValid(input: ServiceInput): void {
 }
 
 export async function getServices(): Promise<Service[]> {
+  assertAdmin();
   await delay();
   return services.map(service => ({ ...service }));
 }
 
 export async function createService(data: ServiceInput): Promise<Service> {
+  assertAdmin();
   await delay();
   assertValid(data);
 
@@ -70,6 +92,7 @@ export async function createService(data: ServiceInput): Promise<Service> {
 }
 
 export async function updateService(id: string, data: ServiceInput): Promise<Service> {
+  assertAdmin();
   await delay();
   assertValid(data);
 
@@ -88,6 +111,7 @@ export async function updateService(id: string, data: ServiceInput): Promise<Ser
 }
 
 export async function toggleStatus(id: string, newStatus: ServiceStatus): Promise<Service> {
+  assertAdmin();
   await delay();
 
   const existingService = services.find(service => service.id === id);

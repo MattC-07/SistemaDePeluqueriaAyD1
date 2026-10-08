@@ -237,7 +237,7 @@ export function BottomNav({ active, onNavigate }: { active: ClientTab; onNavigat
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-[#F5E6D3] px-2 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-[100] bg-white border-t-2 border-[#F5E6D3] px-2 pb-safe">
       <div className="flex items-stretch h-16 max-w-md mx-auto">
         {items.map(item => (
           <button

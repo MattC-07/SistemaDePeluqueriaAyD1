@@ -7,7 +7,7 @@ import {
 } from '../data';
 import {
   BookingServiceError,
-  confirmarReserva,
+  confirmReservation,
   getAvailabilityForMonth,
   getDisponibilidad,
   liberarTurno,
@@ -17,6 +17,7 @@ import {
 } from '../services/bookingService';
 import { SuccessIllustration, MemphisStylistAvatar } from '../illustrations';
 import { Button, BookingProgress, Card, PopularBadge, StarRating, PageHeader, ServicePhoto } from '../ui';
+import { LANDING_STYLIST_IMAGES } from '../mockData';
 
 // ─── STEP 1 — Choose Service ───────────────────────────────────────────────────
 
@@ -234,8 +235,9 @@ function Calendar({ serviceId, stylistId, selected, onSelect }: {
   onSelect: (date: string) => void;
 }) {
   const today = new Date();
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const selectedParts = selected?.split('-').map(Number);
+  const [viewYear, setViewYear] = useState(selectedParts?.[0] ?? today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selectedParts ? selectedParts[1] - 1 : today.getMonth());
   const [availabilityDays, setAvailabilityDays] = useState<Map<string, boolean>>(new Map());
   const [availabilityStatus, setAvailabilityStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [retryCount, setRetryCount] = useState(0);
@@ -327,8 +329,8 @@ function Calendar({ serviceId, stylistId, selected, onSelect }: {
               onClick={() => !disabled && onSelect(dateStr)}
               disabled={disabled}
               className={`
-                relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-semibold transition-all duration-150
-                ${isSelected ? 'bg-[#E8734A] text-white shadow-[0_4px_12px_rgba(232,115,74,0.4)] scale-[1.1]' : ''}
+                flex flex-col items-center justify-center h-10 rounded-xl text-sm font-semibold transition-all duration-150
+                ${isSelected ? 'relative z-10 bg-[#E8734A] text-white shadow-[0_4px_12px_rgba(232,115,74,0.4)] scale-[1.1]' : 'relative z-[1]'}
                 ${!isSelected && !disabled && hasAvailability ? 'bg-[#EAF2E3] text-[#4A7C59] hover:bg-[#DCEBD1] hover:scale-[1.05]' : ''}
                 ${!isSelected && !disabled && availabilityStatus === 'success' && !hasAvailability ? 'bg-[#F5E6D3] text-[#A67850] hover:bg-[#EED9C1]' : ''}
                 ${!isSelected && !disabled && availabilityStatus === 'loading' ? 'text-[#6B4226] hover:bg-[#FBF3E9]' : ''}
@@ -371,14 +373,15 @@ function Calendar({ serviceId, stylistId, selected, onSelect }: {
   );
 }
 
-export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: {
+export function BookStep3({ serviceId, stylistId, initialDate, onNext, onBack, onConflict }: {
   serviceId: string;
   stylistId: string;
+  initialDate?: string | null;
   onNext: (date: string, time: string, hold: SlotHold) => void;
   onBack: () => void;
   onConflict: (message: string) => void;
 }) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate ?? null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [availability, setAvailability] = useState<
     | { status: 'idle' | 'loading'; slots: AvailableSlot[] }
@@ -389,6 +392,7 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
   const [hold, setHold] = useState<SlotHold | null>(null);
   const [holdStatus, setHoldStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [holdMessage, setHoldMessage] = useState<string | null>(null);
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
   const requestVersion = useRef(0);
   const activeHold = useRef<SlotHold | null>(null);
@@ -435,6 +439,7 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
       setHoldMessage(message);
       if (error instanceof BookingServiceError && error.status === 409) {
         onConflict(error.response.message);
+        setConflictMessage(error.response.message);
       }
       setRetryCount(count => count + 1);
     }
@@ -458,7 +463,9 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
         if (!active) return;
         setAvailability({ status: 'success', slots: response.slots });
         setSelectedTime(time =>
-          response.slots.some(slot => slot.time === time && slot.stylistId === hold?.stylistId)
+          response.slots.some(slot =>
+            slot.time === time && (!hold || slot.stylistId === hold.stylistId)
+          )
             ? time
             : null
         );
@@ -507,7 +514,7 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
   );
 
   return (
-    <div className="flex flex-col h-full bg-[#FBF3E9]">
+    <div className="isolate flex h-full flex-col bg-[#FBF3E9]">
       <div className="bg-white px-5 pt-10 pb-4 shadow-[0_2px_12px_rgba(107,66,38,0.06)]">
         <PageHeader title="Elige el Horario" subtitle={service?.name} onBack={() => {
           requestVersion.current += 1;
@@ -519,7 +526,7 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5 pb-32">
+      <div className="relative z-0 flex-1 overflow-y-auto px-5 py-5 pb-36">
         {/* Duration info */}
         <div className="flex items-center gap-2 mb-5 p-3 bg-white rounded-2xl border border-[#F5E6D3]">
           <span className="text-lg">⏱</span>
@@ -581,10 +588,10 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
                     key={`${slot.time}-${slot.stylistId}`}
                     onClick={() => void selectSlot(slot)}
                     disabled={holdStatus === 'loading'}
-                    className={`min-h-10 rounded-2xl border-2 px-2 py-2 text-sm font-bold transition-colors ${
+                    className={`relative min-h-10 rounded-2xl border-2 px-2 py-2 text-sm font-bold transition-all ${
                       selectedSlot?.time === slot.time && selectedSlot.stylistId === slot.stylistId
-                        ? 'border-[#E8734A] bg-[#E8734A] text-white'
-                        : 'border-[#E8734A] bg-white text-[#E8734A] hover:bg-[#FBF3E9]'
+                        ? 'z-10 border-[#E8734A] bg-[#E8734A] text-white shadow-[0_4px_12px_rgba(232,115,74,0.28)]'
+                        : 'z-[1] border-[#E8734A] bg-white text-[#E8734A] hover:bg-[#FBF3E9]'
                     } ${holdStatus === 'loading' ? 'cursor-wait opacity-60' : ''}`}
                   >
                     {slot.time}
@@ -619,9 +626,9 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-[#F5E6D3] p-5 pb-safe">
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-white border-t-2 border-[#F5E6D3] px-4 py-3 pb-safe">
         {selectedDate && selectedTime && (
-          <div className="flex items-center gap-2 mb-3 p-3 bg-[#FBF3E9] rounded-2xl">
+          <div className="flex min-h-9 items-center gap-2 mb-2 px-3 py-2 bg-[#FBF3E9] rounded-xl">
             <span className="text-base">📍</span>
             <div className="flex-1">
               <span className="text-xs font-semibold text-[#6B4226]">
@@ -645,20 +652,42 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: 
           {selectedDate && selectedSlot && hold ? 'Revisar reserva →' : 'Elige fecha y hora'}
         </Button>
       </div>
+      {conflictMessage && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#24160F]/55 p-5" role="presentation">
+          <div className="w-full max-w-md rounded-3xl border border-[#F2A950]/50 bg-white p-6 text-center shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="booking-conflict-title">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF3CD] text-3xl text-[#A66A16]" aria-hidden="true">!</span>
+            <h2 id="booking-conflict-title" className="mt-4 font-display text-xl font-black text-[#6B4226]">Turno no disponible</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#8B6A52]">{conflictMessage}</p>
+            <Button
+              onClick={() => {
+                setConflictMessage(null);
+                setSelectedTime(null);
+              }}
+              size="lg"
+              fullWidth
+            >
+              Elegir nuevo horario
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── STEP 4 — Confirm ──────────────────────────────────────────────────────────
 
-export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
+export function BookStep4({ booking, onConfirm, onBack, onConflict, onChooseNewTime }: {
   booking: BookingState;
-  onConfirm: () => void;
+  onConfirm: (reservationCode: string) => void;
   onBack: () => void;
   onConflict: (message: string) => void;
+  onChooseNewTime: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [confirmationError, setConfirmationError] = useState<string | null>(null);
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  const confirming = useRef(false);
   const [remainingMs, setRemainingMs] = useState(
     Math.max(0, (booking.holdExpiresAt ?? 0) - Date.now()),
   );
@@ -674,20 +703,31 @@ export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
   }, [booking.holdExpiresAt]);
 
   const handleConfirm = async () => {
+    if (confirming.current) return;
     if (!booking.holdId || remainingMs <= 0) {
       setConfirmationError('El bloqueo venció. Regresa y selecciona nuevamente un horario.');
       return;
     }
+    confirming.current = true;
     setLoading(true);
     setConfirmationError(null);
     try {
-      await confirmarReserva(booking.holdId);
-      onConfirm();
+      const confirmation = await confirmReservation({
+        servicioId: booking.serviceId!,
+        estilistaId: booking.stylistId!,
+        fecha: booking.date!,
+        horaInicio: booking.time!,
+      });
+      onConfirm(confirmation.reservationCode);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo confirmar la reserva.';
       setConfirmationError(message);
-      if (error instanceof BookingServiceError && error.status === 409) onConflict(error.response.message);
+      if (error instanceof BookingServiceError && error.status === 409) {
+        onConflict(error.response.message);
+        setConflictMessage(error.response.message);
+      }
     } finally {
+      confirming.current = false;
       setLoading(false);
     }
   };
@@ -697,6 +737,11 @@ export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
   const formattedDate = (() => {
     const [y, m, d] = booking.date.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  })();
+  const endTime = (() => {
+    const [hours, minutes] = booking.time!.split(':').map(Number);
+    const end = hours * 60 + minutes + service.duration;
+    return `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
   })();
 
   return (
@@ -724,9 +769,7 @@ export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
         {/* Summary card */}
         <Card className="mb-5">
           <div className="flex items-center gap-3 mb-4 pb-4 border-b border-[#F5E6D3]">
-            <div className="w-12 h-12 rounded-2xl bg-[#FBF3E9] flex items-center justify-center text-2xl flex-shrink-0">
-              {CATEGORY_CONFIG[service.category].emoji}
-            </div>
+            <ServicePhoto serviceId={service.id} category={service.category} className="h-14 w-14 shrink-0 rounded-2xl" alt={service.name} />
             <div className="flex-1">
               <div className="font-black text-[#6B4226] font-display text-lg leading-tight">{service.name}</div>
               <div className="text-sm text-[#A67850] font-medium">{formatDuration(service.duration)} de servicio</div>
@@ -752,7 +795,7 @@ export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
               </div>
               <div>
                 <div className="text-xs font-semibold text-[#C8A88A] uppercase tracking-wide">Hora</div>
-                <div className="font-semibold text-[#6B4226] text-sm">{booking.time}</div>
+                <div className="font-semibold text-[#6B4226] text-sm">{booking.time} - {endTime}</div>
               </div>
             </div>
 
@@ -766,7 +809,10 @@ export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
                   {stylist ? stylist.name : 'Cualquiera disponible'}
                 </div>
                 {stylist && (
-                  <div className="text-xs text-[#A67850]">{stylist.specialty}</div>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-[#A67850]">
+                    <img src={LANDING_STYLIST_IMAGES[stylist.id]} alt="" className="h-8 w-8 rounded-full object-cover" />
+                    <span>{stylist.specialty}</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -816,24 +862,38 @@ export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
         <Button onClick={() => void handleConfirm()} variant="primary" size="lg" fullWidth disabled={loading || !booking.holdId || remainingMs <= 0}>
           {loading ? (
             <span className="flex items-center gap-2">
-              <span className="animate-spin">⏳</span> Confirmando reserva...
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />
+              Confirmando reserva...
             </span>
           ) : (
-            '✅ Confirmar cita'
+            'Confirmar Reserva'
           )}
         </Button>
         <p className="text-center text-xs text-[#A67850] mt-2">
           Recibirás una confirmación por correo
         </p>
       </div>
+      {conflictMessage && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#24160F]/55 p-5" role="presentation">
+          <div className="w-full max-w-md rounded-3xl border border-[#F2A950]/50 bg-white p-6 text-center shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="confirmation-conflict-title">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF3CD] text-3xl text-[#A66A16]" aria-hidden="true">!</span>
+            <h2 id="confirmation-conflict-title" className="mt-4 font-display text-xl font-black text-[#6B4226]">Turno no disponible</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#8B6A52]">{conflictMessage}</p>
+            <Button onClick={onChooseNewTime} size="lg" fullWidth>
+              Elegir nuevo horario
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── SUCCESS ───────────────────────────────────────────────────────────────────
 
-export function BookSuccess({ booking, onGoToAppointments, onGoHome }: {
+export function BookSuccess({ booking, reservationCode, onGoToAppointments, onGoHome }: {
   booking: BookingState;
+  reservationCode: string;
   onGoToAppointments: () => void;
   onGoHome: () => void;
 }) {
@@ -863,7 +923,7 @@ export function BookSuccess({ booking, onGoToAppointments, onGoHome }: {
         {/* Success badge */}
         <div className="flex justify-center mb-4">
           <div className="inline-flex items-center gap-2 bg-[#EAF2E3] px-4 py-2 rounded-full border border-[#A8BB92]">
-            <span className="text-[#4A7C59] text-sm">✓</span>
+            <span className="animate-pulse text-[#4A7C59] text-sm">✓</span>
             <span className="text-sm font-bold text-[#4A7C59]">¡Reserva confirmada!</span>
           </div>
         </div>
@@ -910,8 +970,11 @@ export function BookSuccess({ booking, onGoToAppointments, onGoHome }: {
         {/* Confirmation number */}
         <div className="flex items-center justify-center gap-2 mb-6 p-3 bg-white rounded-2xl border-2 border-dashed border-[#EDD8BC]">
           <span className="text-sm text-[#A67850]">Nº de reserva:</span>
-          <span className="font-black text-[#E8734A] text-sm tracking-widest">#BB-{Math.random().toString(36).slice(2, 8).toUpperCase()}</span>
+          <span className="font-black text-[#E8734A] text-sm tracking-widest">#{reservationCode}</span>
         </div>
+        <p className="mb-6 text-center text-xs leading-relaxed text-[#8B6A52]">
+          Hemos enviado los detalles de tu cita y la dirección a tu correo electrónico.
+        </p>
 
         {/* CTAs */}
         <div className="flex flex-col gap-3">

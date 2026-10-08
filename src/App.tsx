@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router';
 import type { UserRole, BookingState } from './data';
 import { APPOINTMENTS } from './data';
 import { BottomNav, SideNav } from './ui';
 
 // Onboarding
-import { LoginScreen, RegisterScreen, RoleSelectScreen, ForgotPasswordScreen } from './screens/Onboarding';
+import { LoginScreen, RegisterScreen, RoleSelectScreen, ForgotPasswordScreen, SplashScreen } from './screens/Onboarding';
 import Landing from './screens/Landing';
 import { liberarTurno } from './services/bookingService';
 
@@ -76,6 +77,7 @@ PATH_TO_SCREEN['/admin/clientes'] = 'stylist-clients';
 const PROTECTED_PREFIXES = ['/cliente', '/admin', '/estilista'];
 const SESSION_KEY_ROLE = 'bb_role';
 const SESSION_KEY_AUTH = 'bb_auth';
+const SESSION_KEY_USER_NAME = 'bb_user_name';
 
 const INITIAL_BOOKING: BookingState = {
   serviceId: null,
@@ -97,11 +99,15 @@ export default function App() {
   const [role, setRole] = useState<UserRole>(() =>
     (sessionStorage.getItem(SESSION_KEY_ROLE) as UserRole) ?? 'client'
   );
+  const [userName, setUserName] = useState(() =>
+    sessionStorage.getItem(SESSION_KEY_USER_NAME) ?? 'Juan García'
+  );
 
   // Ephemeral state — lost on F5 (by design for multi-step flows)
   const [booking, setBooking] = useState<BookingState>(INITIAL_BOOKING);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [reservationCode, setReservationCode] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const dismissToast = useCallback(() => setToastMessage(null), []);
 
@@ -133,20 +139,36 @@ export default function App() {
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (
+      location.pathname.startsWith('/admin') &&
+      (!isLoggedIn || role !== 'admin')
+    ) {
+      navigate('/cliente/inicio', { replace: true });
+      return;
+    }
+    if (
+      location.pathname.startsWith('/estilista') &&
+      (!isLoggedIn || role !== 'stylist')
+    ) {
+      navigate('/cliente/inicio', { replace: true });
+      return;
+    }
     const isProtected = PROTECTED_PREFIXES.some(p => location.pathname.startsWith(p));
-    if (isProtected && !isLoggedIn) {
+    if (isProtected && !isLoggedIn && location.pathname !== '/cliente/inicio') {
       navigate('/login', { replace: true });
     }
-  }, [location.pathname, isLoggedIn, navigate]);
+  }, [location.pathname, isLoggedIn, navigate, role]);
 
   // ── Navigation helpers ──────────────────────────────────────────────────────
   const nav = (s: Screen) => navigate(SCREEN_TO_PATH[s]);
 
-  const handleLogin = (r: UserRole) => {
+  const handleLogin = (r: UserRole, name = 'Juan García') => {
     setRole(r);
+    setUserName(name);
     setIsLoggedIn(true);
     sessionStorage.setItem(SESSION_KEY_ROLE, r);
     sessionStorage.setItem(SESSION_KEY_AUTH, 'true');
+    sessionStorage.setItem(SESSION_KEY_USER_NAME, name);
     if (r === 'admin') navigate('/admin/dashboard', { replace: true });
     else if (r === 'stylist') navigate('/estilista/mi-agenda', { replace: true });
     else navigate('/cliente/inicio', { replace: true });
@@ -156,6 +178,7 @@ export default function App() {
     setIsLoggedIn(false);
     sessionStorage.removeItem(SESSION_KEY_AUTH);
     sessionStorage.removeItem(SESSION_KEY_ROLE);
+    sessionStorage.removeItem(SESSION_KEY_USER_NAME);
     navigate('/', { replace: true });
   };
 
@@ -207,7 +230,7 @@ export default function App() {
         return (
           <Landing
             isLoggedIn={isLoggedIn}
-            userName="Juan García"
+            userName={userName}
             onLogin={() => nav('login')}
             onRegister={() => nav('register')}
             onBook={serviceId => {
@@ -249,7 +272,7 @@ export default function App() {
           <ClientHome
             onBook={id => startBooking(id)}
             onViewService={id => { setSelectedServiceId(id); nav('service-detail'); }}
-            userName="Juan García"
+            userName={userName}
           />
         );
 
@@ -296,6 +319,7 @@ export default function App() {
           <BookStep3
             serviceId={booking.serviceId}
             stylistId={booking.stylistId}
+            initialDate={booking.date}
             onNext={(date, time, hold) => {
               setBooking(b => ({
                 ...b,
@@ -319,21 +343,33 @@ export default function App() {
         return (
           <BookStep4
             booking={booking}
-            onConfirm={() => nav('book-success')}
+            onConfirm={code => {
+              setReservationCode(code);
+              nav('book-success');
+            }}
             onBack={() => {
               if (booking.holdId) void liberarTurno(booking.holdId);
               setBooking(current => ({ ...current, holdId: undefined, holdExpiresAt: undefined }));
               nav('book-3');
             }}
             onConflict={message => setToastMessage(message)}
+            onChooseNewTime={() => {
+              if (booking.holdId) void liberarTurno(booking.holdId);
+              flushSync(() => {
+                setBooking({ ...booking, time: null, holdId: undefined, holdExpiresAt: undefined });
+                setReservationCode(null);
+              });
+              nav('book-3');
+            }}
           />
         );
 
       case 'book-success':
-        if (!booking.serviceId) { nav('client-home'); return null; }
+        if (!booking.serviceId || !reservationCode) { nav('client-home'); return null; }
         return (
           <BookSuccess
             booking={booking}
+            reservationCode={reservationCode}
             onGoToAppointments={() => nav('my-appointments')}
             onGoHome={() => nav('client-home')}
           />

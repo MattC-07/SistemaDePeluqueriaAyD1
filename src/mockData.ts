@@ -1,4 +1,4 @@
-import { SERVICES, STYLISTS } from './data';
+import { APPOINTMENTS, SERVICES, STYLISTS, getService, type AppointmentStatus } from './data';
 
 export const LANDING_SERVICES = SERVICES;
 export const LANDING_STYLISTS = STYLISTS;
@@ -39,3 +39,20 @@ export const LANDING_HOURS = [
   { days: 'Lunes a sábado', hours: '8:00 a. m. – 8:00 p. m.' },
   { days: 'Domingos', hours: '9:00 a. m. – 4:00 p. m.' },
 ];
+
+export function getRecentAppointmentNotifications(userName: string) {
+  return APPOINTMENTS
+    .filter(appointment =>
+      appointment.clientName === userName &&
+      ['confirmed', 'pending', 'cancelled'].includes(appointment.status)
+    )
+    .sort((first, second) => second.date.localeCompare(first.date))
+    .slice(0, 3)
+    .map(appointment => ({
+      id: appointment.id,
+      serviceName: getService(appointment.serviceId)?.name ?? 'Tu cita',
+      date: appointment.date,
+      time: appointment.time,
+      status: appointment.status as Extract<AppointmentStatus, 'confirmed' | 'pending' | 'cancelled'>,
+    }));
+}

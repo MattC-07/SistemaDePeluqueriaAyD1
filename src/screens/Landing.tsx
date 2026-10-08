@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatDuration, formatPrice, type Service } from '../data';
-import { LANDING_HOURS, LANDING_LOCATION, LANDING_SERVICE_IMAGES, LANDING_SERVICES, LANDING_STYLIST_IMAGES, LANDING_STYLISTS } from '../mockData';
+import { getRecentAppointmentNotifications, LANDING_HOURS, LANDING_LOCATION, LANDING_SERVICE_IMAGES, LANDING_SERVICES, LANDING_STYLIST_IMAGES, LANDING_STYLISTS } from '../mockData';
 
 type ServiceFilter = 'Todos' | 'Cortes' | 'Barba' | 'Combos' | 'Color' | 'Tratamientos';
 
@@ -93,6 +93,7 @@ export default function Landing({ isLoggedIn, userName, onLogin, onRegister, onB
   const [menuOpen, setMenuOpen] = useState(false);
   const [contentReady, setContentReady] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const recentNotifications = getRecentAppointmentNotifications(userName);
 
   useEffect(() => {
     const timeout = setTimeout(() => setContentReady(true), 550);
@@ -199,9 +200,25 @@ export default function Landing({ isLoggedIn, userName, onLogin, onRegister, onB
                     <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-[#FFFCF8] bg-[#E8734A]" />
                   </button>
                   {notificationsOpen && (
-                    <div className="absolute right-0 top-14 w-64 rounded-2xl border border-[#F1E5D8] bg-white p-4 text-sm shadow-xl">
-                      <p className="font-bold text-[#402719]">¡Todo al día!</p>
-                      <p className="mt-1 text-xs text-[#8B6A52]">Te avisaremos cuando haya novedades sobre tus citas.</p>
+                    <div className="absolute right-0 top-14 z-50 w-72 rounded-2xl border border-[#F1E5D8] bg-white p-4 text-sm shadow-xl">
+                      <p className="font-bold text-[#402719]">Avisos recientes de tus citas</p>
+                      {recentNotifications.length > 0 ? (
+                        <ul className="mt-3 space-y-3">
+                          {recentNotifications.map(notification => (
+                            <li key={notification.id} className="border-t border-[#F1E5D8] pt-3">
+                              <p className="text-xs font-bold text-[#6B4226]">{notification.serviceName}</p>
+                              <p className="mt-1 text-xs text-[#8B6A52]">
+                                {new Date(`${notification.date}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })} · {notification.time}
+                              </p>
+                              <p className="mt-1 text-[11px] font-semibold text-[#E8734A]">
+                                {notification.status === 'confirmed' ? 'Cita confirmada' : notification.status === 'pending' ? 'Cita pendiente' : 'Cita cancelada'}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1 text-xs text-[#8B6A52]">Te avisaremos cuando haya novedades sobre tus citas.</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -503,7 +520,7 @@ export default function Landing({ isLoggedIn, userName, onLogin, onRegister, onB
             <h3 className="font-display font-extrabold">Hablemos</h3>
             <div className="mt-4 flex flex-col gap-3 text-sm text-white/60">
               <a href={`mailto:${LANDING_LOCATION.email}`} className="break-all hover:text-[#F2A950]">{LANDING_LOCATION.email}</a>
-              <a href={`tel:${LANDING_LOCATION.phone.replaceAll(' ', '')}`} className="hover:text-[#F2A950]">{LANDING_LOCATION.phone}</a>
+              <a href={`tel:${LANDING_LOCATION.phone.replace(/\s/g, '')}`} className="hover:text-[#F2A950]">{LANDING_LOCATION.phone}</a>
               <a href="https://wa.me/573000000000" target="_blank" rel="noreferrer" className="inline-flex min-h-11 w-fit items-center rounded-full bg-[#8B9D77] px-4 font-bold text-white transition-colors hover:bg-[#6B7D5A]">Chatea con nosotros ↗</a>
             </div>
           </div>

@@ -5,6 +5,7 @@ const SLOT_HOLD_DURATION_MS = 5 * 60 * 1000;
 const SLOT_INTERVAL_MINUTES = 15;
 const MINIMUM_ADVANCE_MINUTES = 30;
 const MOCK_CONFLICT_PROBABILITY = 0.2;
+const MOCK_CONFIRMATION_CONFLICT_PROBABILITY = 0.15;
 const SERVER_TIME_ZONE = "America/Bogota";
 const LUNCH_BREAK = { start: 13 * 60, end: 14 * 60 };
 const ANY_STYLIST_ID = "any";
@@ -34,7 +35,15 @@ export interface AvailabilityDay {
 export interface SlotHold {
   id: string;
   stylistId: string;
+  time: string;
   expiresAt: number;
+}
+
+export interface ReservationPayload {
+  servicioId: string;
+  estilistaId: string;
+  fecha: string;
+  horaInicio: string;
 }
 
 export interface BookingServiceErrorResponse {
@@ -285,14 +294,6 @@ export async function reservarTurno(
   request: AvailabilityRequest & { time: string },
 ): Promise<SlotHold> {
   await delay(MOCK_API_DELAY_MS);
-  if (Math.random() < MOCK_CONFLICT_PROBABILITY) {
-    throw new BookingServiceError(
-      "Este horario acaba de ser reservado por otro usuario. Por favor selecciona otro turno.",
-      409,
-      "SLOT_TAKEN",
-    );
-  }
-
   const service = getService(request.serviceId);
   if (!service) throw new Error("No se encontró el servicio seleccionado.");
   const serverTime = getServidorTime();
@@ -302,6 +303,24 @@ export async function reservarTurno(
   if (!slot) {
     throw new BookingServiceError(
       "Este horario acaba de ser reservado por otro usuario. Por favor selecciona otro turno.",
+      409,
+      "SLOT_TAKEN",
+    );
+  }
+
+  if (Math.random() < MOCK_CONFLICT_PROBABILITY) {
+    const collision: MockReservation = {
+      id: crypto.randomUUID(),
+      stylistId: slot.stylistId,
+      date: request.date,
+      time: slot.time,
+      duration: service.duration,
+      expiresAt: Number.POSITIVE_INFINITY,
+      status: "confirmed",
+    };
+    reservations.set(collision.id, collision);
+    throw new BookingServiceError(
+      "Lo sentimos, este turno acaba de ser ocupado. Por favor selecciona otro horario.",
       409,
       "SLOT_TAKEN",
     );
@@ -317,7 +336,7 @@ export async function reservarTurno(
     status: "held",
   };
   reservations.set(hold.id, hold);
-  return { id: hold.id, stylistId: hold.stylistId, expiresAt: hold.expiresAt };
+  return { id: hold.id, stylistId: hold.stylistId, time: hold.time, expiresAt: hold.expiresAt };
 }
 
 export const holdTimeSlot = reservarTurno;
@@ -357,6 +376,47 @@ export async function confirmarReserva(holdId: string): Promise<void> {
 
   reservation.status = "confirmed";
   reservation.expiresAt = Number.POSITIVE_INFINITY;
+}
+
+export async function confirmReservation(
+  payload: ReservationPayload,
+): Promise<{ reservationCode: string }> {
+  await delay(600);
+
+  const serverNow = getServidorTime().timestamp;
+  pruneExpiredHolds(serverNow);
+  const service = getService(payload.servicioId);
+  if (!service) throw new Error("No se encontró el servicio seleccionado.");
+
+  const reservation = [...reservations.values()].find(candidate =>
+    candidate.status === "held" &&
+    candidate.date === payload.fecha &&
+    candidate.time === payload.horaInicio &&
+    candidate.stylistId === payload.estilistaId &&
+    candidate.duration === service.duration
+  );
+
+  if (!reservation || reservation.expiresAt <= serverNow) {
+    throw new BookingServiceError(
+      "El bloqueo de esta franja ya no está activo. Vuelve a seleccionar un horario.",
+      404,
+      "HOLD_NOT_FOUND",
+    );
+  }
+
+  if (Math.random() < MOCK_CONFIRMATION_CONFLICT_PROBABILITY) {
+    reservation.status = "confirmed";
+    reservation.expiresAt = Number.POSITIVE_INFINITY;
+    throw new BookingServiceError(
+      "Lo sentimos, este turno acaba de ser ocupado. Por favor selecciona otro horario.",
+      409,
+      "SLOT_TAKEN",
+    );
+  }
+
+  reservation.status = "confirmed";
+  reservation.expiresAt = Number.POSITIVE_INFINITY;
+  return { reservationCode: `BK-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}` };
 }
 
 export const confirmBooking = confirmarReserva;
