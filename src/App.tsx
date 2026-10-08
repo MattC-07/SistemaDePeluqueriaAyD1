@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import type { UserRole, BookingState } from './data';
 import { APPOINTMENTS } from './data';
@@ -7,6 +7,7 @@ import { BottomNav, SideNav } from './ui';
 // Onboarding
 import { LoginScreen, RegisterScreen, RoleSelectScreen, ForgotPasswordScreen } from './screens/Onboarding';
 import Landing from './screens/Landing';
+import { liberarTurno } from './services/bookingService';
 
 // Booking
 import { BookStep1, BookStep2, BookStep3, BookStep4, BookSuccess } from './screens/Booking';
@@ -101,6 +102,8 @@ export default function App() {
   const [booking, setBooking] = useState<BookingState>(INITIAL_BOOKING);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const dismissToast = useCallback(() => setToastMessage(null), []);
 
   // Derive current screen from URL path
   const screen: Screen = PATH_TO_SCREEN[location.pathname] ?? 'splash';
@@ -293,8 +296,19 @@ export default function App() {
           <BookStep3
             serviceId={booking.serviceId}
             stylistId={booking.stylistId}
-            onNext={(date, time) => { setBooking(b => ({ ...b, date, time })); nav('book-4'); }}
+            onNext={(date, time, hold) => {
+              setBooking(b => ({
+                ...b,
+                stylistId: hold.stylistId,
+                date,
+                time,
+                holdId: hold.id,
+                holdExpiresAt: hold.expiresAt,
+              }));
+              nav('book-4');
+            }}
             onBack={() => nav('book-2')}
+            onConflict={message => setToastMessage(message)}
           />
         );
 
@@ -306,7 +320,12 @@ export default function App() {
           <BookStep4
             booking={booking}
             onConfirm={() => nav('book-success')}
-            onBack={() => nav('book-3')}
+            onBack={() => {
+              if (booking.holdId) void liberarTurno(booking.holdId);
+              setBooking(current => ({ ...current, holdId: undefined, holdExpiresAt: undefined }));
+              nav('book-3');
+            }}
+            onConflict={message => setToastMessage(message)}
           />
         );
 
@@ -403,6 +422,7 @@ export default function App() {
         <div className="flex-1 flex flex-col overflow-hidden pt-14 pb-16 md:pt-0 md:pb-0">
           {renderScreen()}
         </div>
+        <GlobalToast message={toastMessage} onDismiss={dismissToast} />
       </div>
     );
   }
@@ -413,6 +433,7 @@ export default function App() {
         <div className="flex-1 overflow-hidden">
           {renderScreen()}
         </div>
+        <GlobalToast message={toastMessage} onDismiss={dismissToast} />
         <BottomNav active={clientTab} onNavigate={handleClientTab} />
       </div>
     );
@@ -421,6 +442,26 @@ export default function App() {
   return (
     <div className="h-full bg-[#FBF3E9] overflow-hidden">
       {renderScreen()}
+      <GlobalToast message={toastMessage} onDismiss={dismissToast} />
+    </div>
+  );
+}
+
+function GlobalToast({ message, onDismiss }: { message: string | null; onDismiss: () => void }) {
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(onDismiss, 3500);
+    return () => window.clearTimeout(timer);
+  }, [message, onDismiss]);
+
+  if (!message) return null;
+  return (
+    <div
+      className="fixed bottom-24 left-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl bg-red-700 px-5 py-3 text-sm font-semibold text-white shadow-xl"
+      role="alert"
+    >
+      <span className="flex-1">{message}</span>
+      <button onClick={onDismiss} aria-label="Cerrar notificación" className="font-bold">×</button>
     </div>
   );
 }

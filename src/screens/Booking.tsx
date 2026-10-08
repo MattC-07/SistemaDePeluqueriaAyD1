@@ -1,10 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  SERVICES, STYLISTS, TIME_SLOTS, UNAVAILABLE_DATES, BUSY_DATES,
+  SERVICES, STYLISTS,
   getStylistsForService, getService, getStylist,
   formatPrice, formatDuration, formatDate,
   CATEGORY_CONFIG, type BookingState,
 } from '../data';
+import {
+  BookingServiceError,
+  confirmarReserva,
+  getAvailabilityForMonth,
+  getDisponibilidad,
+  liberarTurno,
+  reservarTurno,
+  type AvailableSlot,
+  type SlotHold,
+} from '../services/bookingService';
 import { SuccessIllustration, MemphisStylistAvatar } from '../illustrations';
 import { Button, BookingProgress, Card, PopularBadge, StarRating, PageHeader, ServicePhoto } from '../ui';
 
@@ -217,16 +227,40 @@ export function BookStep2({ serviceId, onNext, onBack }: {
 
 // ─── STEP 3 — Choose Date & Time ───────────────────────────────────────────────
 
-function Calendar({ selected, onSelect }: { selected: string | null; onSelect: (d: string) => void }) {
+function Calendar({ serviceId, stylistId, selected, onSelect }: {
+  serviceId: string;
+  stylistId: string;
+  selected: string | null;
+  onSelect: (date: string) => void;
+}) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [availabilityDays, setAvailabilityDays] = useState<Map<string, boolean>>(new Map());
+  const [availabilityStatus, setAvailabilityStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [retryCount, setRetryCount] = useState(0);
 
   const monthName = new Date(viewYear, viewMonth, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const dayLabels = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
+
+  useEffect(() => {
+    let active = true;
+    setAvailabilityStatus('loading');
+    getAvailabilityForMonth({ serviceId, stylistId, year: viewYear, month: viewMonth })
+      .then(days => {
+        if (!active) return;
+        setAvailabilityDays(new Map(days.map(day => [day.date, day.hasAvailability])));
+        setAvailabilityStatus('success');
+      })
+      .catch(() => {
+        if (active) setAvailabilityStatus('error');
+      });
+
+    return () => { active = false; };
+  }, [retryCount, serviceId, stylistId, viewMonth, viewYear]);
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
@@ -283,10 +317,9 @@ function Calendar({ selected, onSelect }: { selected: string | null; onSelect: (
           const day = i + 1;
           const dateStr = getDateStr(day);
           const past = isPast(day);
-          const unavailable = UNAVAILABLE_DATES.includes(dateStr);
-          const busy = BUSY_DATES.includes(dateStr);
+          const hasAvailability = availabilityDays.get(dateStr) === true;
           const isSelected = selected === dateStr;
-          const disabled = past || unavailable;
+          const disabled = past;
 
           return (
             <button
@@ -296,14 +329,17 @@ function Calendar({ selected, onSelect }: { selected: string | null; onSelect: (
               className={`
                 relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-semibold transition-all duration-150
                 ${isSelected ? 'bg-[#E8734A] text-white shadow-[0_4px_12px_rgba(232,115,74,0.4)] scale-[1.1]' : ''}
-                ${!isSelected && !disabled && !busy ? 'hover:bg-[#FBF3E9] text-[#6B4226] hover:scale-[1.05]' : ''}
-                ${!isSelected && busy && !disabled ? 'bg-[#FEF5E4] text-[#D4883A] hover:bg-[#FDEBD0] hover:scale-[1.05]' : ''}
+                ${!isSelected && !disabled && hasAvailability ? 'bg-[#EAF2E3] text-[#4A7C59] hover:bg-[#DCEBD1] hover:scale-[1.05]' : ''}
+                ${!isSelected && !disabled && availabilityStatus === 'success' && !hasAvailability ? 'bg-[#F5E6D3] text-[#A67850] hover:bg-[#EED9C1]' : ''}
+                ${!isSelected && !disabled && availabilityStatus === 'loading' ? 'text-[#6B4226] hover:bg-[#FBF3E9]' : ''}
                 ${disabled ? 'text-[#D8C4B0] cursor-not-allowed' : ''}
               `}
+              aria-label={`${day} ${monthName}${hasAvailability ? ', con horarios disponibles' : availabilityStatus === 'success' ? ', sin horarios disponibles' : ''}`}
+              title={availabilityStatus === 'success' ? (hasAvailability ? 'Hay horarios disponibles' : 'Sin horarios disponibles') : undefined}
             >
               {day}
-              {busy && !isSelected && !disabled && (
-                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-[#F2A950]" />
+              {hasAvailability && !isSelected && (
+                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[#4A7C59]" />
               )}
             </button>
           );
@@ -311,46 +347,173 @@ function Calendar({ selected, onSelect }: { selected: string | null; onSelect: (
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-[#F5E6D3]">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#E8734A]" />
-          <span className="text-[10px] text-[#A67850] font-medium">Disponible</span>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#F5E6D3] pt-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex items-center gap-1.5 text-[10px] font-medium text-[#A67850]">
+            <span className="h-3 w-3 rounded-full bg-[#EAF2E3] ring-1 ring-[#4A7C59]" />
+            Disponible
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] font-medium text-[#A67850]">
+            <span className="h-3 w-3 rounded-full bg-[#F5E6D3]" />
+            Sin disponibilidad
+          </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#FEF5E4] border border-[#F2A950]" />
-          <span className="text-[10px] text-[#A67850] font-medium">Pocas plazas</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#F5E6D3]" />
-          <span className="text-[10px] text-[#A67850] font-medium">No disponible</span>
-        </div>
+        {availabilityStatus === 'loading' && (
+          <span className="text-[10px] text-[#A67850]" role="status">Consultando disponibilidad...</span>
+        )}
+        {availabilityStatus === 'error' && (
+          <button onClick={() => setRetryCount(count => count + 1)} className="text-[10px] font-bold text-red-700 underline">
+            Error al cargar. Reintentar
+          </button>
+        )}
       </div>
     </Card>
   );
 }
 
-export function BookStep3({ serviceId, stylistId, onNext, onBack }: {
+export function BookStep3({ serviceId, stylistId, onNext, onBack, onConflict }: {
   serviceId: string;
   stylistId: string;
-  onNext: (date: string, time: string) => void;
+  onNext: (date: string, time: string, hold: SlotHold) => void;
   onBack: () => void;
+  onConflict: (message: string) => void;
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<
+    | { status: 'idle' | 'loading'; slots: AvailableSlot[] }
+    | { status: 'success'; slots: AvailableSlot[] }
+    | { status: 'error'; slots: AvailableSlot[]; message: string }
+  >({ status: 'idle', slots: [] });
+  const [retryCount, setRetryCount] = useState(0);
+  const [hold, setHold] = useState<SlotHold | null>(null);
+  const [holdStatus, setHoldStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [holdMessage, setHoldMessage] = useState<string | null>(null);
+  const [remainingMs, setRemainingMs] = useState(0);
+  const requestVersion = useRef(0);
+  const activeHold = useRef<SlotHold | null>(null);
+  const transferredHold = useRef(false);
   const service = getService(serviceId);
 
-  const slots = useMemo(() => {
-    if (!selectedDate) return [];
-    return TIME_SLOTS.map(slot => ({
-      ...slot,
-      available: slot.available && !BUSY_DATES.includes(selectedDate),
-    }));
-  }, [selectedDate]);
+  const releaseCurrentHold = async () => {
+    const current = activeHold.current;
+    activeHold.current = null;
+    setHold(null);
+    if (current) await liberarTurno(current.id);
+  };
+
+  const selectSlot = async (slot: AvailableSlot) => {
+    if (hold?.time === slot.time && hold.stylistId === slot.stylistId) return;
+    const currentVersion = ++requestVersion.current;
+    setSelectedTime(slot.time);
+    setHoldStatus('loading');
+    setHoldMessage(null);
+
+    try {
+      await releaseCurrentHold();
+      if (!selectedDate || currentVersion !== requestVersion.current) return;
+      const nextHold = await reservarTurno({
+        serviceId,
+        stylistId: slot.stylistId,
+        date: selectedDate,
+        time: slot.time,
+      });
+      if (currentVersion !== requestVersion.current) {
+        await liberarTurno(nextHold.id);
+        return;
+      }
+      activeHold.current = nextHold;
+      setHold(nextHold);
+      setHoldStatus('idle');
+    } catch (error) {
+      if (currentVersion !== requestVersion.current) return;
+      setSelectedTime(null);
+      setHoldStatus('error');
+      const message = error instanceof Error
+        ? error.message
+        : 'No se pudo bloquear el horario. Inténtalo de nuevo.';
+      setHoldMessage(message);
+      if (error instanceof BookingServiceError && error.status === 409) {
+        onConflict(error.response.message);
+      }
+      setRetryCount(count => count + 1);
+    }
+  };
+
+  useEffect(() => () => {
+    if (!transferredHold.current && activeHold.current) {
+      void liberarTurno(activeHold.current.id);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      setAvailability({ status: 'idle', slots: [] });
+      return;
+    }
+    let active = true;
+    setAvailability({ status: 'loading', slots: [] });
+    getDisponibilidad({ serviceId, stylistId, date: selectedDate, holdId: hold?.id })
+      .then(response => {
+        if (!active) return;
+        setAvailability({ status: 'success', slots: response.slots });
+        setSelectedTime(time =>
+          response.slots.some(slot => slot.time === time && slot.stylistId === hold?.stylistId)
+            ? time
+            : null
+        );
+      })
+      .catch(error => {
+        if (!active) return;
+        setAvailability({
+          status: 'error',
+          slots: [],
+          message: error instanceof Error ? error.message : 'No fue posible consultar los horarios.',
+        });
+      });
+    return () => { active = false; };
+  }, [hold?.id, hold?.stylistId, retryCount, serviceId, selectedDate, stylistId]);
+
+  useEffect(() => {
+    if (!selectedDate || hold) return;
+    const timer = window.setInterval(() => setRetryCount(count => count + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, [hold, selectedDate]);
+
+  useEffect(() => {
+    if (!hold) {
+      setRemainingMs(0);
+      return;
+    }
+    const update = () => {
+      const remaining = hold.expiresAt - Date.now();
+      setRemainingMs(Math.max(0, remaining));
+      if (remaining <= 0) {
+        activeHold.current = null;
+        setHold(null);
+        setSelectedTime(null);
+        setHoldStatus('error');
+        setHoldMessage('El bloqueo venció. Selecciona nuevamente un horario.');
+        setRetryCount(count => count + 1);
+      }
+    };
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [hold]);
+
+  const selectedSlot = availability.slots.find(
+    slot => slot.time === selectedTime && slot.stylistId === hold?.stylistId,
+  );
 
   return (
     <div className="flex flex-col h-full bg-[#FBF3E9]">
       <div className="bg-white px-5 pt-10 pb-4 shadow-[0_2px_12px_rgba(107,66,38,0.06)]">
-        <PageHeader title="Elige el Horario" subtitle={service?.name} onBack={onBack} />
+        <PageHeader title="Elige el Horario" subtitle={service?.name} onBack={() => {
+          requestVersion.current += 1;
+          void releaseCurrentHold();
+          onBack();
+        }} />
         <div className="px-5 pt-2 pb-4">
           <BookingProgress step={3} />
         </div>
@@ -367,7 +530,19 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack }: {
 
         {/* Calendar */}
         <h3 className="font-black text-[#6B4226] font-display mb-3">Selecciona el día</h3>
-        <Calendar selected={selectedDate} onSelect={d => { setSelectedDate(d); setSelectedTime(null); }} />
+        <Calendar
+          serviceId={serviceId}
+          stylistId={stylistId}
+          selected={selectedDate}
+          onSelect={date => {
+            requestVersion.current += 1;
+            void releaseCurrentHold();
+            setSelectedDate(date);
+            setSelectedTime(null);
+            setHoldStatus('idle');
+            setHoldMessage(null);
+          }}
+        />
 
         {/* Time slots */}
         {selectedDate && (
@@ -375,30 +550,64 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack }: {
             <h3 className="font-black text-[#6B4226] font-display mb-3">
               Horarios disponibles
               <span className="ml-2 text-sm text-[#A67850] font-medium">
-                {new Date(...(selectedDate.split('-').map(Number) as [number, number, number])).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
               </span>
             </h3>
 
-            <div className="grid grid-cols-4 gap-2">
-              {slots.map(slot => (
-                <button
-                  key={slot.time}
-                  onClick={() => slot.available && setSelectedTime(slot.time)}
-                  disabled={!slot.available}
-                  className={`
-                    py-2.5 rounded-2xl text-sm font-bold transition-all duration-150
-                    ${selectedTime === slot.time
-                      ? 'bg-[#E8734A] text-white shadow-[0_4px_12px_rgba(232,115,74,0.4)] scale-[1.05]'
-                      : slot.available
-                        ? 'bg-white border-2 border-[#E8734A] text-[#E8734A] hover:bg-[#FBF3E9] hover:scale-[1.03]'
-                        : 'bg-[#F5E6D3] text-[#D8C4B0] cursor-not-allowed border-2 border-transparent'
-                    }
-                  `}
-                >
-                  {slot.time}
+            {availability.status === 'loading' && (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="status" aria-label="Cargando horarios">
+                {Array.from({ length: 8 }, (_, index) => (
+                  <div key={index} className="h-10 animate-pulse rounded-2xl bg-[#F5E6D3]" />
+                ))}
+              </div>
+            )}
+            {availability.status === 'error' && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center" role="alert">
+                <p className="text-sm text-red-700">{availability.message}</p>
+                <button onClick={() => setRetryCount(count => count + 1)} className="mt-2 text-sm font-bold underline">
+                  Reintentar
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
+            {availability.status === 'success' && availability.slots.length === 0 && (
+              <p className="rounded-2xl bg-white p-4 text-center text-sm font-medium text-[#A67850]">
+                No hay turnos disponibles para esta fecha. Intenta con otro barbero o selecciona el siguiente día disponible.
+              </p>
+            )}
+            {availability.status === 'success' && availability.slots.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {availability.slots.map(slot => (
+                  <button
+                    key={`${slot.time}-${slot.stylistId}`}
+                    onClick={() => void selectSlot(slot)}
+                    disabled={holdStatus === 'loading'}
+                    className={`min-h-10 rounded-2xl border-2 px-2 py-2 text-sm font-bold transition-colors ${
+                      selectedSlot?.time === slot.time && selectedSlot.stylistId === slot.stylistId
+                        ? 'border-[#E8734A] bg-[#E8734A] text-white'
+                        : 'border-[#E8734A] bg-white text-[#E8734A] hover:bg-[#FBF3E9]'
+                    } ${holdStatus === 'loading' ? 'cursor-wait opacity-60' : ''}`}
+                  >
+                    {slot.time}
+                  </button>
+                ))}
+              </div>
+            )}
+            {holdStatus === 'loading' && (
+              <p className="mt-3 text-center text-sm text-[#A67850]" role="status">Bloqueando horario...</p>
+            )}
+            {holdStatus === 'error' && holdMessage && (
+              <p className="mt-3 rounded-xl bg-red-50 p-3 text-center text-sm text-red-700" role="alert">{holdMessage}</p>
+            )}
+            {hold && (
+              <p className="mt-3 text-center text-sm font-semibold text-[#4A7C59]" role="status">
+                Turno bloqueado por {Math.floor(remainingMs / 60_000)}:{String(Math.floor((remainingMs % 60_000) / 1000)).padStart(2, '0')} min
+              </p>
+            )}
+            {selectedSlot && stylistId === 'any' && (
+              <p className="mt-2 text-center text-xs text-[#A67850]">
+                Estilista asignado: {getStylist(selectedSlot.stylistId)?.name}
+              </p>
+            )}
           </div>
         )}
 
@@ -416,20 +625,24 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack }: {
             <span className="text-base">📍</span>
             <div className="flex-1">
               <span className="text-xs font-semibold text-[#6B4226]">
-                {new Date(...(selectedDate.split('-').map(Number) as [number, number, number])).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
                 {' '}a las {selectedTime}
               </span>
             </div>
           </div>
         )}
         <Button
-          onClick={() => selectedDate && selectedTime && onNext(selectedDate, selectedTime)}
+          onClick={() => {
+            if (!selectedDate || !selectedSlot || !hold) return;
+            transferredHold.current = true;
+            onNext(selectedDate, selectedSlot.time, hold);
+          }}
           variant="primary"
           size="lg"
           fullWidth
-          disabled={!selectedDate || !selectedTime}
+          disabled={!selectedDate || !selectedSlot || !hold || holdStatus !== 'idle' || availability.status !== 'success'}
         >
-          {selectedDate && selectedTime ? 'Revisar reserva →' : 'Elige fecha y hora'}
+          {selectedDate && selectedSlot && hold ? 'Revisar reserva →' : 'Elige fecha y hora'}
         </Button>
       </div>
     </div>
@@ -438,18 +651,45 @@ export function BookStep3({ serviceId, stylistId, onNext, onBack }: {
 
 // ─── STEP 4 — Confirm ──────────────────────────────────────────────────────────
 
-export function BookStep4({ booking, onConfirm, onBack }: {
+export function BookStep4({ booking, onConfirm, onBack, onConflict }: {
   booking: BookingState;
   onConfirm: () => void;
   onBack: () => void;
+  onConflict: (message: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [confirmationError, setConfirmationError] = useState<string | null>(null);
+  const [remainingMs, setRemainingMs] = useState(
+    Math.max(0, (booking.holdExpiresAt ?? 0) - Date.now()),
+  );
   const service = getService(booking.serviceId!);
   const stylist = booking.stylistId === 'any' ? null : getStylist(booking.stylistId!);
 
-  const handleConfirm = () => {
+  useEffect(() => {
+    if (!booking.holdExpiresAt) return;
+    const updateRemaining = () => setRemainingMs(Math.max(0, booking.holdExpiresAt! - Date.now()));
+    updateRemaining();
+    const timer = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(timer);
+  }, [booking.holdExpiresAt]);
+
+  const handleConfirm = async () => {
+    if (!booking.holdId || remainingMs <= 0) {
+      setConfirmationError('El bloqueo venció. Regresa y selecciona nuevamente un horario.');
+      return;
+    }
     setLoading(true);
-    setTimeout(() => { setLoading(false); onConfirm(); }, 1200);
+    setConfirmationError(null);
+    try {
+      await confirmarReserva(booking.holdId);
+      onConfirm();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo confirmar la reserva.';
+      setConfirmationError(message);
+      if (error instanceof BookingServiceError && error.status === 409) onConflict(error.response.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!service || !booking.date || !booking.time) return null;
@@ -469,6 +709,18 @@ export function BookStep4({ booking, onConfirm, onBack }: {
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-5 pb-36">
+        <p className={`mb-4 rounded-2xl p-3 text-center text-sm font-semibold ${
+          remainingMs > 0 ? 'bg-[#EAF2E3] text-[#4A7C59]' : 'bg-red-50 text-red-700'
+        }`} role="status">
+          {remainingMs > 0
+            ? `Turno bloqueado durante ${Math.floor(remainingMs / 60_000)}:${String(Math.floor((remainingMs % 60_000) / 1000)).padStart(2, '0')} min`
+            : 'El bloqueo temporal venció.'}
+        </p>
+        {confirmationError && (
+          <p className="mb-4 rounded-2xl bg-red-50 p-3 text-center text-sm text-red-700" role="alert">
+            {confirmationError}
+          </p>
+        )}
         {/* Summary card */}
         <Card className="mb-5">
           <div className="flex items-center gap-3 mb-4 pb-4 border-b border-[#F5E6D3]">
@@ -561,7 +813,7 @@ export function BookStep4({ booking, onConfirm, onBack }: {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-[#F5E6D3] p-5 pb-safe">
-        <Button onClick={handleConfirm} variant="primary" size="lg" fullWidth disabled={loading}>
+        <Button onClick={() => void handleConfirm()} variant="primary" size="lg" fullWidth disabled={loading || !booking.holdId || remainingMs <= 0}>
           {loading ? (
             <span className="flex items-center gap-2">
               <span className="animate-spin">⏳</span> Confirmando reserva...
