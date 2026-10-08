@@ -12,8 +12,7 @@ import Landing from './screens/Landing';
 import { BookStep1, BookStep2, BookStep3, BookStep4, BookSuccess } from './screens/Booking';
 
 // Services
-import { ClientHome, ServiceCatalog, ServiceDetail } from './screens/Services';
-import AdminServices from './screens/AdminServices';
+import { ClientHome, ServiceCatalog, ServiceDetail, AdminServices } from './screens/Services';
 
 // Appointments
 import { MyAppointments, AppointmentDetail, CancelAppointment } from './screens/Appointments';

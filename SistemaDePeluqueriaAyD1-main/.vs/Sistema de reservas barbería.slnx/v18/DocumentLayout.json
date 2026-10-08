@@ -1,0 +1,70 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\README.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:README.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\.gitattributes||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.gitattributes||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\src\\imports\\image-15.png||{177559E0-D141-11D0-92DF-00A0C9138C45}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\imports\\image-15.png||{177559E0-D141-11D0-92DF-00A0C9138C45}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "README.md",
+              "DocumentMoniker": "C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\README.md",
+              "RelativeDocumentMoniker": "README.md",
+              "ToolTip": "C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\README.md",
+              "RelativeToolTip": "README.md",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACEAAAAGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-09-20T21:56:46.648Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": ".gitattributes",
+              "DocumentMoniker": "C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\.gitattributes",
+              "RelativeDocumentMoniker": ".gitattributes",
+              "ToolTip": "C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\.gitattributes",
+              "RelativeToolTip": ".gitattributes",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-09-20T21:56:40.997Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "image-15.png - PNG [1670x834, 32 bit, PNG]",
+              "DocumentMoniker": "C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\src\\imports\\image-15.png",
+              "RelativeDocumentMoniker": "src\\imports\\image-15.png",
+              "ToolTip": "C:\\Users\\xxemc\\OneDrive\\Documentos\\UdeA\\ANALISIS Y DISENIO\\Sistema de reservas barber\u00EDa\\src\\imports\\image-15.png - PNG [1670x834, 32 bit, PNG]",
+              "RelativeToolTip": "src\\imports\\image-15.png - PNG [1670x834, 32 bit, PNG]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001533|",
+              "WhenOpened": "2026-09-20T21:55:57.812Z",
+              "EditorCaption": " - PNG [1670x834, 32 bit, PNG]"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
