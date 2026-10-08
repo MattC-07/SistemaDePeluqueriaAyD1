@@ -1,4 +1,4 @@
-import { type ReactNode, type Ref, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { CATEGORY_CONFIG, STATUS_CONFIG, type AppointmentStatus, type ServiceCategory } from './data';
 import { LANDING_SERVICE_IMAGES } from './mockData';
 
@@ -66,10 +66,9 @@ interface InputProps {
   icon?: ReactNode;
   rightAdornment?: ReactNode;
   onBlur?: () => void;
-  inputRef?: Ref<HTMLInputElement>;
 }
 
-export function Input({ label, id, type = 'text', value, onChange, placeholder, autoComplete, required, error, hint, icon, rightAdornment, onBlur, inputRef }: InputProps) {
+export function Input({ label, id, type = 'text', value, onChange, placeholder, autoComplete, required, error, hint, icon, rightAdornment, onBlur }: InputProps) {
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-semibold text-[#6B4226]">{label}</label>
@@ -80,7 +79,6 @@ export function Input({ label, id, type = 'text', value, onChange, placeholder, 
           </span>
         )}
         <input
-          ref={inputRef}
           type={type}
           id={id}
           value={value}
