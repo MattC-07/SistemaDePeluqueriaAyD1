@@ -228,7 +228,7 @@ function pruneExpiredHolds(now: number): void {
 }
 
 function mockIntervals(date: string, stylistId: string, today: string, now: number, ignoredHoldId?: string): TimeInterval[] {
-  const appointments = APPOINTMENTS
+  const appointments = [...APPOINTMENTS, ...getTestAppointments()]
     .filter(appointment =>
       appointment.date === date &&
       appointment.stylistId === stylistId &&
