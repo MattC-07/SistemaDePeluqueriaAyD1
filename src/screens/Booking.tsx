@@ -117,12 +117,13 @@ export function BookStep1({ onNext, onBack }: {
 
 // ─── STEP 2 — Choose Stylist ───────────────────────────────────────────────────
 
-export function BookStep2({ serviceId, onNext, onBack }: {
+export function BookStep2({ serviceId, initialStylistId, onNext, onBack }: {
   serviceId: string;
+  initialStylistId?: string | null;
   onNext: (stylistId: string) => void;
   onBack: () => void;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialStylistId ?? null);
   const service = getService(serviceId);
   const stylists = getStylistsForService(serviceId);
 

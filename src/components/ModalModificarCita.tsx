@@ -47,6 +47,7 @@ export default function ModalModificarCita({
   const [hold, setHold] = useState<SlotHold | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const activeHold = useRef<SlotHold | null>(null);
@@ -177,6 +178,7 @@ export default function ModalModificarCita({
         hold.id,
       );
       activeHold.current = null;
+      setSuccessMessage(`¡Cita reprogramada exitosamente para el ${date} a las ${selectedSlot.time}!`);
       onUpdated(updatedAppointment);
     } catch (reason) {
       setErrorMessage(reason instanceof Error ? reason.message : 'No fue posible modificar la cita. Inténtalo nuevamente.');
@@ -221,96 +223,111 @@ export default function ModalModificarCita({
           </button>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-2 text-sm font-bold text-[#6B4226]">
-            Nueva fecha
-            <input
-              type="date"
-              min={today}
-              value={date}
-              onChange={event => changeDate(event.target.value)}
-              className="rounded-xl border border-[#D8C4B0] bg-white px-3 py-2.5 text-[#3D2415] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#87371E]"
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-bold text-[#6B4226]">
-            Estilista
-            <select
-              value={stylistId}
-              onChange={event => changeStylist(event.target.value)}
-              className="rounded-xl border border-[#D8C4B0] bg-white px-3 py-2.5 text-[#3D2415] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#87371E]"
-            >
-              <option value={ANY_STYLIST_ID}>Cualquier estilista</option>
-              {stylists.map(stylist => (
-                <option key={stylist.id} value={stylist.id}>{stylist.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="mt-5">
-          <h3 className="font-display font-black text-[#6B4226]">Horarios disponibles</h3>
-          {availabilityStatus === 'loading' && (
-            <p className="mt-3 text-sm text-[#A67850]" role="status">Consultando disponibilidad...</p>
-          )}
-          {availabilityStatus === 'error' && (
-            <div className="mt-3 rounded-xl bg-[#FFF5F5] p-3 text-sm text-[#7C2C20]" role="alert">
-              <p>{availabilityError ?? 'No fue posible consultar los horarios.'}</p>
-              <button type="button" onClick={() => setRetry(value => value + 1)} className="mt-2 font-bold underline">
-                Reintentar
-              </button>
+        {successMessage ? (
+          <div className="mt-5 rounded-2xl border border-[#8B9D77] bg-[#EAF2E3] p-4 text-sm font-semibold text-[#3F684B]" role="status" aria-live="polite">
+            <p>{successMessage}</p>
+            <p className="mt-1">Estilista: {selectedStylist?.name ?? 'Estilista asignado'}</p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-2 text-sm font-bold text-[#6B4226]">
+                Nueva fecha
+                <input
+                  type="date"
+                  min={today}
+                  value={date}
+                  onChange={event => changeDate(event.target.value)}
+                  className="rounded-xl border border-[#D8C4B0] bg-white px-3 py-2.5 text-[#3D2415] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#87371E]"
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-bold text-[#6B4226]">
+                Estilista
+                <select
+                  value={stylistId}
+                  onChange={event => changeStylist(event.target.value)}
+                  className="rounded-xl border border-[#D8C4B0] bg-white px-3 py-2.5 text-[#3D2415] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#87371E]"
+                >
+                  <option value={ANY_STYLIST_ID}>Cualquier estilista</option>
+                  {stylists.map(stylist => (
+                    <option key={stylist.id} value={stylist.id}>{stylist.name}</option>
+                  ))}
+                </select>
+              </label>
             </div>
-          )}
-          {availabilityStatus === 'success' && slots.length === 0 && (
-            <p className="mt-3 rounded-xl bg-[#FBF3E9] p-3 text-sm text-[#6B4226]">
-              No hay horarios disponibles para esta fecha. Prueba otro día o estilista.
-            </p>
-          )}
-          {availabilityStatus === 'success' && slots.length > 0 && (
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {slots.map(slot => {
-                const isSelected = selectedSlot?.time === slot.time && selectedSlot.stylistId === slot.stylistId;
-                return (
-                  <button
-                    key={`${slot.time}-${slot.stylistId}`}
-                    type="button"
-                    onClick={() => void selectSlot(slot)}
-                    disabled={saving}
-                    aria-pressed={isSelected}
-                    className={`rounded-xl border px-3 py-2 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#87371E] ${
-                      isSelected
-                        ? 'border-[#87371E] bg-[#87371E] text-white'
-                        : 'border-[#D8C4B0] text-[#6B4226] hover:bg-[#FBF3E9]'
-                    }`}
-                  >
-                    {slot.time}
+
+            <div className="mt-5">
+              <h3 className="font-display font-black text-[#6B4226]">Horarios disponibles</h3>
+              {availabilityStatus === 'loading' && (
+                <p className="mt-3 text-sm text-[#A67850]" role="status">Consultando disponibilidad...</p>
+              )}
+              {availabilityStatus === 'error' && (
+                <div className="mt-3 rounded-xl bg-[#FFF5F5] p-3 text-sm text-[#7C2C20]" role="alert">
+                  <p>{availabilityError ?? 'No fue posible consultar los horarios.'}</p>
+                  <button type="button" onClick={() => setRetry(value => value + 1)} className="mt-2 font-bold underline">
+                    Reintentar
                   </button>
-                );
-              })}
+                </div>
+              )}
+              {availabilityStatus === 'success' && slots.length === 0 && (
+                <p className="mt-3 rounded-xl bg-[#FBF3E9] p-3 text-sm text-[#6B4226]">
+                  No hay horarios disponibles para esta fecha. Prueba otro día o estilista.
+                </p>
+              )}
+              {availabilityStatus === 'success' && slots.length > 0 && (
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {slots.map(slot => {
+                    const isSelected = selectedSlot?.time === slot.time && selectedSlot.stylistId === slot.stylistId;
+                    return (
+                      <button
+                        key={`${slot.time}-${slot.stylistId}`}
+                        type="button"
+                        onClick={() => void selectSlot(slot)}
+                        disabled={saving}
+                        aria-pressed={isSelected}
+                        className={`rounded-xl border px-3 py-2 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#87371E] ${
+                          isSelected
+                            ? 'border-[#87371E] bg-[#87371E] text-white'
+                            : 'border-[#D8C4B0] text-[#6B4226] hover:bg-[#FBF3E9]'
+                        }`}
+                      >
+                        {slot.time}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {selectedSlot && hold && (
-          <p className="mt-4 rounded-xl bg-[#EAF2E3] p-3 text-sm font-semibold text-[#3F684B]">
-            Seleccionaste {date} a las {selectedSlot.time}
-            {selectedStylist ? ` con ${selectedStylist.name}` : ''}. El horario está bloqueado temporalmente.
-          </p>
-        )}
-        {errorMessage && availabilityStatus !== 'error' && (
-          <p className="mt-4 rounded-xl bg-[#FFF5F5] p-3 text-sm font-semibold text-[#7C2C20]" role="alert">
-            {errorMessage}
-          </p>
+            {selectedSlot && hold && (
+              <p className="mt-4 rounded-xl bg-[#EAF2E3] p-3 text-sm font-semibold text-[#3F684B]">
+                Seleccionaste {date} a las {selectedSlot.time}
+                {selectedStylist ? ` con ${selectedStylist.name}` : ''}. El horario está bloqueado temporalmente.
+              </p>
+            )}
+            {errorMessage && availabilityStatus !== 'error' && (
+              <p className="mt-4 rounded-xl bg-[#FFF5F5] p-3 text-sm font-semibold text-[#7C2C20]" role="alert">
+                {errorMessage}
+              </p>
+            )}
+          </>
         )}
 
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <Button variant="ghost" onClick={onClose} disabled={saving}>Volver</Button>
-          <Button
-            onClick={() => void saveChanges()}
-            disabled={!selectedSlot || !hold || saving}
-            ariaBusy={saving}
-          >
-            {saving ? 'Guardando...' : 'Guardar cambios'}
-          </Button>
+          {successMessage ? (
+            <Button onClick={onClose}>Cerrar</Button>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={onClose} disabled={saving}>Volver</Button>
+              <Button
+                onClick={() => void saveChanges()}
+                disabled={!selectedSlot || !hold || saving}
+                ariaBusy={saving}
+              >
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </Button>
+            </>
+          )}
         </div>
       </section>
     </div>

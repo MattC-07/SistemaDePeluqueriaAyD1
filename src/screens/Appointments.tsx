@@ -7,8 +7,9 @@ import ModalModificarCita from '../components/ModalModificarCita';
 
 // ─── MY APPOINTMENTS ───────────────────────────────────────────────────────────
 
-export function MyAppointments({ onBook, onCancel, onBack }: {
+export function MyAppointments({ onBook, onRepeatAppointment, onCancel, onBack }: {
   onBook: () => void;
+  onRepeatAppointment?: (serviceId: string, stylistId: string) => void;
   onCancel?: (id: string) => void;
   onBack?: () => void;
 }) {
@@ -190,6 +191,9 @@ export function MyAppointments({ onBook, onCancel, onBack }: {
                   appointment={appointment}
                   now={currentTimestamp}
                   onClick={() => openDetail(appointment)}
+                  onRepeat={appointment.status === 'completed' && onRepeatAppointment
+                    ? () => onRepeatAppointment(appointment.serviceId, appointment.stylistId)
+                    : undefined}
                 />
               </li>
             ))}
@@ -216,7 +220,6 @@ export function MyAppointments({ onBook, onCancel, onBack }: {
             setAppointments(current => current.map(item =>
               item.id === updatedAppointment.id ? updatedAppointment : item,
             ));
-            setAppointmentToModify(null);
           }}
         />
       )}
@@ -226,7 +229,12 @@ export function MyAppointments({ onBook, onCancel, onBack }: {
 
 // ─── APPOINTMENT CARD ──────────────────────────────────────────────────────────
 
-function AppointmentCard({ appointment, now, onClick }: { appointment: Appointment; now: number; onClick: () => void }) {
+function AppointmentCard({ appointment, now, onClick, onRepeat }: {
+  appointment: Appointment;
+  now: number;
+  onClick: () => void;
+  onRepeat?: () => void;
+}) {
   const service = getService(appointment.serviceId);
   const stylist = getStylist(appointment.stylistId);
   if (!service || !stylist) return null;
@@ -243,60 +251,74 @@ function AppointmentCard({ appointment, now, onClick }: { appointment: Appointme
 
   return (
     <Card padding={false}>
-      <button
-        type="button"
-        onClick={onClick}
-        className="w-full text-left rounded-[20px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3D2415]"
-        aria-label={`Ver detalle de la cita ${service.name}, ${dateObj.toLocaleDateString('es-ES')} a las ${appointment.time}${isActive ? `, faltan ${countdown}` : ''}`}
-      >
-      <div className="p-4 flex items-start gap-3">
-        {/* Date block */}
-        <div className="flex-shrink-0 w-14 bg-[#FBF3E9] rounded-2xl flex flex-col items-center justify-center py-2 px-1">
-          <span className="text-[10px] font-bold text-[#6B4226] uppercase">{month}</span>
-          <span className="text-2xl font-black text-[#A84425] leading-none">{dayNum}</span>
-          <span className="text-[10px] font-bold text-[#6B4226] capitalize">{dayName}</span>
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <span className="font-black font-display text-[#6B4226] text-base leading-tight">{service.name}</span>
-            <StatusBadge status={appointment.status} />
-          </div>
-          {isActive && (
-            <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-[#87371E] bg-[#FFF7F0] px-3 py-2 text-sm font-bold text-[#662A17]">
-              <span aria-hidden="true">⏳</span>
-              <span>Tu cita empieza en</span>
-              <time
-                dateTime={`${appointment.date}T${appointment.time}:00-05:00`}
-                aria-label={`Tiempo restante: ${countdown}`}
-                aria-live="off"
-                role="timer"
-                className="font-mono tabular-nums"
-              >
-                {countdown}
-              </time>
+      <div className="p-4">
+        <button
+          type="button"
+          onClick={onClick}
+          className="w-full rounded-[20px] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3D2415]"
+          aria-label={`Ver detalle de la cita ${service.name}, ${dateObj.toLocaleDateString('es-ES')} a las ${appointment.time}${isActive ? `, faltan ${countdown}` : ''}`}
+        >
+          <div className="flex items-start gap-3">
+            {/* Date block */}
+            <div className="flex-shrink-0 w-14 bg-[#FBF3E9] rounded-2xl flex flex-col items-center justify-center py-2 px-1">
+              <span className="text-[10px] font-bold text-[#6B4226] uppercase">{month}</span>
+              <span className="text-2xl font-black text-[#A84425] leading-none">{dayNum}</span>
+              <span className="text-[10px] font-bold text-[#6B4226] capitalize">{dayName}</span>
             </div>
-          )}
-          {relativeCreatedAt && (
-            <p className="mt-1 text-[11px] font-semibold text-[#6B4226]">
-              Hace: {relativeCreatedAt}
-            </p>
-          )}
 
-          <div className="flex items-center gap-2 mt-1.5">
-            <MemphisStylistAvatar name={stylist.name} color={stylist.color} size={22} />
-            <span className="text-xs text-[#6B4226] font-medium">{stylist.name}</span>
-          </div>
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-black font-display text-[#6B4226] text-base leading-tight">{service.name}</span>
+                <StatusBadge status={appointment.status} />
+              </div>
+              {isActive && (
+                <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-[#87371E] bg-[#FFF7F0] px-3 py-2 text-sm font-bold text-[#662A17]">
+                  <span aria-hidden="true">⏳</span>
+                  <span>Tu cita empieza en</span>
+                  <time
+                    dateTime={`${appointment.date}T${appointment.time}:00-05:00`}
+                    aria-label={`Tiempo restante: ${countdown}`}
+                    aria-live="off"
+                    role="timer"
+                    className="font-mono tabular-nums"
+                  >
+                    {countdown}
+                  </time>
+                </div>
+              )}
+              {relativeCreatedAt && (
+                <p className="mt-1 text-[11px] font-semibold text-[#6B4226]">
+                  Hace: {relativeCreatedAt}
+                </p>
+              )}
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs font-semibold text-[#6B4226]">
-            <span className="flex items-center gap-1">🕐 {appointment.time}</span>
-            <span className="flex items-center gap-1">⏱ {formatDuration(service.duration)}</span>
-            <span className="flex items-center gap-1 text-[#A84425]">💰 {formatPrice(service.price)}</span>
+              <div className="flex items-center gap-2 mt-1.5">
+                <MemphisStylistAvatar name={stylist.name} color={stylist.color} size={22} />
+                <span className="text-xs text-[#6B4226] font-medium">{stylist.name}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs font-semibold text-[#6B4226]">
+                <span className="flex items-center gap-1">🕐 {appointment.time}</span>
+                <span className="flex items-center gap-1">⏱ {formatDuration(service.duration)}</span>
+                <span className="flex items-center gap-1 text-[#A84425]">💰 {formatPrice(service.price)}</span>
+              </div>
+            </div>
           </div>
-        </div>
+        </button>
+        {onRepeat && (
+          <div className="mt-3 border-t border-[#F5E6D3] pt-3">
+            <Button
+              onClick={onRepeat}
+              variant="secondary"
+              size="sm"
+              ariaLabel={`Repetir cita de ${service.name} con ${stylist.name}`}
+            >
+              Repetir cita
+            </Button>
+          </div>
+        )}
       </div>
-      </button>
     </Card>
   );
 }
