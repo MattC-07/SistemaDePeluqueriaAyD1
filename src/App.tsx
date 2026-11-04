@@ -398,8 +398,6 @@ export default function App() {
         return (
           <MyAppointments
             onBook={() => startBooking()}
-            onViewDetail={id => { setSelectedAppointmentId(id); nav('appointment-detail'); }}
-            onReschedule={startRescheduling}
             onCancel={id => { setSelectedAppointmentId(id); nav('cancel-appointment'); }}
           />
         );
