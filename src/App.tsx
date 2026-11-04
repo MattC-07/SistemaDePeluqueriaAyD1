@@ -195,6 +195,14 @@ export default function App() {
     }
   };
 
+  const repeatAppointment = (serviceId: string, stylistId: string) => {
+    setReschedulingAppointmentId(null);
+    setSelectedAppointmentId(null);
+    setReservationCode(null);
+    setBooking({ ...INITIAL_BOOKING, serviceId, stylistId });
+    nav('book-3');
+  };
+
   const startRescheduling = (appointmentId: string, serviceId: string) => {
     setSelectedAppointmentId(appointmentId);
     setReschedulingAppointmentId(appointmentId);
@@ -318,6 +326,7 @@ export default function App() {
         return (
           <BookStep2
             serviceId={booking.serviceId}
+            initialStylistId={booking.stylistId}
             onNext={id => { setBooking(b => ({ ...b, stylistId: id })); nav('book-3'); }}
             onBack={() => nav('book-1')}
           />
@@ -398,6 +407,7 @@ export default function App() {
         return (
           <MyAppointments
             onBook={() => startBooking()}
+            onRepeatAppointment={repeatAppointment}
             onCancel={id => { setSelectedAppointmentId(id); nav('cancel-appointment'); }}
           />
         );

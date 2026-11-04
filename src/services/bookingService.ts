@@ -112,7 +112,7 @@ const expiredHoldIds = new Set<string>();
 // Lista de strings para probar HU-14/HS-02; debe conectarse con el backend en producción.
 const testAppointmentStrings: string[] = [
   "test-upcoming-1|Juan García|s3|st1|2026-11-05|10:00|confirmed|2026-11-01T15:40:00-05:00",
-  "test-history-1|Juan García|s2|st3|2026-10-20|11:30|completed|2026-10-29T09:15:00-05:00",
+  "test-history-1|Juan García|s2|st2|2026-10-20|11:30|completed|2026-10-29T09:15:00-05:00",
 ];
 
 const appointmentStatuses = new Set<Appointment["status"]>([
