@@ -3,13 +3,12 @@ import { getService, getStylist, formatPrice, formatDuration, CATEGORY_CONFIG, S
 import { StatusBadge, Button, Card, PageHeader, EmptyState } from '../ui';
 import { EmptyAppointmentsIllustration, MemphisStylistAvatar } from '../illustrations';
 import { AppointmentAccessError, AppointmentActionError, canManageAppointment, cancelMyAppointment, getMyAppointment, getMyAppointments, requestAppointmentReschedule } from '../services/bookingService';
+import ModalModificarCita from '../components/ModalModificarCita';
 
 // ─── MY APPOINTMENTS ───────────────────────────────────────────────────────────
 
-export function MyAppointments({ onBook, onViewDetail, onReschedule, onCancel, onBack }: {
+export function MyAppointments({ onBook, onCancel, onBack }: {
   onBook: () => void;
-  onViewDetail?: (id: string) => void;
-  onReschedule?: (appointmentId: string, serviceId: string) => void;
   onCancel?: (id: string) => void;
   onBack?: () => void;
 }) {
@@ -17,6 +16,7 @@ export function MyAppointments({ onBook, onViewDetail, onReschedule, onCancel, o
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [appointmentToModify, setAppointmentToModify] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<'access' | 'generic' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -100,10 +100,9 @@ export function MyAppointments({ onBook, onViewDetail, onReschedule, onCancel, o
     if (!selectedAppointment) return;
     setActionLoading('reschedule'); setActionError(null);
     try {
-      await requestAppointmentReschedule(selectedAppointment.id);
+      const appointment = await requestAppointmentReschedule(selectedAppointment.id);
       setSelectedAppointment(null);
-      if (onReschedule) onReschedule(selectedAppointment.id, selectedAppointment.serviceId);
-      else onViewDetail?.(selectedAppointment.id);
+      setAppointmentToModify(appointment);
     } catch (reason) {
       setActionError(getAppointmentActionMessage(reason, 'reschedule'));
     } finally { setActionLoading(null); }
@@ -207,6 +206,18 @@ export function MyAppointments({ onBook, onViewDetail, onReschedule, onCancel, o
           onClose={() => setSelectedAppointment(null)}
           onCancel={upcoming.some(item => item.id === selectedAppointment.id) ? handleCancel : undefined}
           onReschedule={upcoming.some(item => item.id === selectedAppointment.id) ? handleReschedule : undefined}
+        />
+      )}
+      {appointmentToModify && (
+        <ModalModificarCita
+          appointment={appointmentToModify}
+          onClose={() => setAppointmentToModify(null)}
+          onUpdated={updatedAppointment => {
+            setAppointments(current => current.map(item =>
+              item.id === updatedAppointment.id ? updatedAppointment : item,
+            ));
+            setAppointmentToModify(null);
+          }}
         />
       )}
     </main>
